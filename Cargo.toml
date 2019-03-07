@@ -1,0 +1,13 @@
+[package]
+name = "home-fm-server"
+version = "0.1.0"
+authors = ["Sniadek <wojokarolg9@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+listenfd = "0.3"
+futures = "0.1"
+env_logger = "0.5"
+actix = "0.7"
+actix-web = "0.7"
+serde = { version = "1.0", features = ["derive"] }
