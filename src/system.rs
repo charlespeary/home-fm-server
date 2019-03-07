@@ -1,4 +1,4 @@
-use super::app_state::{get_app_state, AppState};
+use super::app_state::{get_app_state, set_current_song, AppState};
 use actix_web::{http::Method, middleware, server, App};
 use listenfd::ListenFd;
 use std::sync::{Arc, Mutex};
@@ -16,10 +16,12 @@ impl System {
         let mut server = server::new(move || {
             App::with_state(AppState {
                 current_song: Arc::new(Mutex::new(String::from("DESPACITO"))),
-                something: "pozdro".to_string(),
             }) // <- create app with shared state
             // add our resources (routes)
             .resource("/song", |r| r.method(Method::GET).f(get_app_state))
+            .resource("/song/set_current", |r| {
+                r.method(Method::POST).with(set_current_song)
+            })
             // add middleware to log stuff
             .middleware(middleware::Logger::default())
         });
