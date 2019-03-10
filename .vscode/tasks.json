@@ -6,7 +6,7 @@
     {
       "label": "run server and watch",
       "type": "shell",
-      "command": "systemfd --no-pid -s http::8080 -- cargo watch -x run"
+      "command": "systemfd --no-pid -s http::8080 -- cargo watch -w ./src -x run"
     }
   ]
 }
