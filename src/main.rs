@@ -6,8 +6,9 @@ extern crate listenfd;
 extern crate serde;
 #[macro_use]
 extern crate failure;
-mod app_state;
+mod song;
 mod system;
+mod web_socket;
 use system::System;
 
 fn main() {

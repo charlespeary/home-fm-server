@@ -1,6 +1,20 @@
-use super::app_state::{get_app_state, set_current_song, AppState};
-use actix_web::{http::Method, middleware, server, App};
+use super::web_socket::ws_index;
+use actix_web::{middleware, server, App};
 use listenfd::ListenFd;
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub current_song: Arc<Mutex<String>>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        AppState {
+            current_song: Arc::new(Mutex::new(String::new())),
+        }
+    }
+}
 
 pub struct System {}
 
@@ -18,10 +32,7 @@ impl System {
         let mut server = server::new(move || {
             App::with_state(state.clone()) // <- create app with shared state
                 // add our resources (routes)
-                .resource("/song", |r| r.method(Method::GET).f(get_app_state))
-                .resource("/song/set_current", |r| {
-                    r.method(Method::POST).with(set_current_song)
-                })
+                .resource("/ws/", |r| r.route().f(ws_index))
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
         });
