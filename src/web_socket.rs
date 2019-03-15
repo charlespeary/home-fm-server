@@ -1,16 +1,19 @@
-use super::song::{set_current_song, DownloadStatus};
+use super::io::IOJob;
+use super::io::*;
+use super::song::DownloadStatus;
 use super::system::AppState;
 use ::actix::*;
 use actix_web::*;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
-
+use std::time::Duration;
 /// do websocket handshake and start `MyWebSocket` actor
 pub fn ws_index(r: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
+    println!("Websocket spawned");
     ws::start(r, MyWebSocket {})
 }
 
-struct MyWebSocket;
+#[derive(Debug)]
+pub struct MyWebSocket;
 
 impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self, AppState>;
@@ -22,15 +25,15 @@ impl Actor for MyWebSocket {
 
 const ONE_SECOND: Duration = Duration::from_secs(1);
 
-// TODO: Broadcast is blocked while downloading song
 impl MyWebSocket {
     fn broadcast_state(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(ONE_SECOND, |act, ctx| {
-            let x = ctx.state().current_song.lock().unwrap().clone();
-            println!("I am running");
-            ctx.text(&x);
-            // ctx.text("hello");
-        });
+        // this interval is not needed at this moment
+        // ctx.run_interval(ONE_SECOND, |act, ctx| {
+        //     let x = ctx.state().current_song.lock().unwrap().clone();
+        //     println!("I am running");
+        //     ctx.text(&x);
+        //     // ctx.text("hello");
+        // });
     }
 }
 
@@ -43,16 +46,16 @@ struct WSAction {
 
 #[derive(Serialize, Deserialize, Debug)]
 enum Status {
-    #[serde(rename = "Unkown action")]
+    #[serde(rename = "unkown_action")]
     UnknownAction,
-    #[serde(rename = "Successfull request")]
+    #[serde(rename = "successfull_request")]
     Success,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct MyResponse<T> {
-    success: bool,
-    message: T,
+pub struct MyResponse<T> {
+    pub success: bool,
+    pub message: T,
 }
 
 /// Handler for ws::Message message
@@ -63,19 +66,20 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
             ws::Message::Text(text) => {
                 let action_object: WSAction = serde_json::from_str(&text).unwrap();
                 match action_object.action.as_str() {
-                    "set_current_song" => {
+                    "request_song" => {
                         // download song and set it to active, in case of any errors notify client about it
-                        let download_response =
-                            set_current_song(&action_object.payload, ctx.state());
-                        // response that gets serialized into json response
-                        let response = MyResponse::<DownloadStatus> {
-                            success: download_response.is_success(),
-                            message: download_response.get_status(),
-                        };
-                        // send json via websocket to client after serialization
-                        ctx.text(serde_json::to_string(&response).unwrap())
+                        //     set_current_song(&action_object.payload.as_str(), ctx);
+                        let address = ctx.address();
+                        ctx.state().IO.do_send(IOMessage {
+                            action: IOJob::DownloadSong {
+                                song_name: action_object.payload,
+                            },
+                            sender_address: address,
+                        });
+                        ctx.text("Started downloading song.")
                     }
                     "schedule_song" => {}
+                    "set_active_song" => {}
                     _ => {
                         // Unkown action, let's notify user about that
                         let response = MyResponse::<Status> {
@@ -90,5 +94,18 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
             ws::Message::Binary(bin) => ctx.binary(bin),
             _ => (),
         }
+    }
+}
+
+impl Message for MyResponse<DownloadStatus> {
+    type Result = Result<(), Error>;
+}
+
+impl Handler<MyResponse<DownloadStatus>> for MyWebSocket {
+    type Result = Result<(), Error>;
+    fn handle(&mut self, msg: MyResponse<DownloadStatus>, ctx: &mut Self::Context) -> Self::Result {
+        let response = serde_json::to_string(&msg).unwrap();
+        ctx.text(response);
+        Ok(())
     }
 }

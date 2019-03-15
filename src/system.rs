@@ -1,19 +1,14 @@
+use super::io::MyIO;
 use super::web_socket::ws_index;
+use actix::sync::SyncArbiter;
+use actix::Addr;
 use actix_web::{middleware, server, App};
 use listenfd::ListenFd;
 use std::sync::{Arc, Mutex};
-
 #[derive(Clone)]
 pub struct AppState {
     pub current_song: Arc<Mutex<String>>,
-}
-
-impl AppState {
-    pub fn new() -> Self {
-        AppState {
-            current_song: Arc::new(Mutex::new(String::new())),
-        }
-    }
+    pub IO: Addr<MyIO>,
 }
 
 pub struct System {}
@@ -27,7 +22,13 @@ impl System {
         let mut listenfd = ListenFd::from_env();
 
         // Initial state of the app filled with Arc<Mutex>> to make it shareable between states
-        let state = AppState::new();
+
+        let addr = SyncArbiter::start(num_cpus::get(), move || MyIO {});
+
+        let state = AppState {
+            current_song: Arc::new(Mutex::new(String::new())),
+            IO: addr.clone(),
+        };
 
         let mut server = server::new(move || {
             App::with_state(state.clone()) // <- create app with shared state
