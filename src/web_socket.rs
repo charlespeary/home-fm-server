@@ -1,6 +1,5 @@
-use super::io::IOJob;
 use super::io::*;
-use super::song::DownloadStatus;
+use super::io::{AdditionalAction, IOJob, IOResponse};
 use super::system::AppState;
 use ::actix::*;
 use actix_web::*;
@@ -79,7 +78,6 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                         ctx.text("Started downloading song.")
                     }
                     "schedule_song" => {}
-                    "set_active_song" => {}
                     _ => {
                         // Unkown action, let's notify user about that
                         let response = MyResponse::<Status> {
@@ -97,15 +95,21 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
     }
 }
 
-impl Message for MyResponse<DownloadStatus> {
-    type Result = Result<(), Error>;
-}
+impl Handler<IOResponse> for MyWebSocket {
+    type Result = ();
+    fn handle(&mut self, msg: IOResponse, ctx: &mut Self::Context) -> Self::Result {
+        match msg.additional_action {
+            AdditionalAction::SaveSongToState { song_name } => {
+                *(ctx.state().current_song.lock().unwrap()) = song_name;
+            }
+            _ => (),
+        };
 
-impl Handler<MyResponse<DownloadStatus>> for MyWebSocket {
-    type Result = Result<(), Error>;
-    fn handle(&mut self, msg: MyResponse<DownloadStatus>, ctx: &mut Self::Context) -> Self::Result {
-        let response = serde_json::to_string(&msg).unwrap();
-        ctx.text(response);
-        Ok(())
+        let response = MyResponse {
+            success: msg.success,
+            message: msg.message,
+        };
+
+        ctx.text(serde_json::to_string(&response).unwrap());
     }
 }
