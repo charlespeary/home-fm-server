@@ -1,4 +1,4 @@
-use super::song::download_song;
+use super::song::{download_song, Song};
 use super::web_socket::MyWebSocket;
 use actix::*;
 pub struct MyIO;
@@ -20,7 +20,7 @@ pub struct IOMessage {
 
 #[derive(Debug)]
 pub enum AdditionalAction {
-    SaveSongToState { song_name: String },
+    SaveSongToState { song: Song },
     None,
 }
 
@@ -37,27 +37,27 @@ impl Handler<IOMessage> for MyIO {
     fn handle(&mut self, msg: IOMessage, ctx: &mut Self::Context) -> Self::Result {
         match msg.action {
             IOJob::DownloadSong { song_name } => {
-                // boolean informing us whether song was downloaded or not
-                let song_downloaded = download_song(&song_name);
-
-                let (additional_action, message) = {
+                // Result containing Song with all informations of it we need or empty error for now
+                let song = download_song(&song_name);
+                let (additional_action, message, success) = {
                     // if song was downloaded save it's name to the state
-                    if song_downloaded {
-                        (
-                            AdditionalAction::SaveSongToState {
-                                song_name: song_name.clone(),
-                            },
+                    match song {
+                        Ok(song) => (
+                            AdditionalAction::SaveSongToState { song },
                             "song_download_success".to_owned(),
-                        )
-                    // otherwise do nothing
-                    } else {
-                        (AdditionalAction::None, "song_download_failure".to_owned())
+                            true,
+                        ),
+                        _ => (
+                            AdditionalAction::None,
+                            "song_download_failure".to_owned(),
+                            false,
+                        ),
                     }
                 };
                 // construct io message that will tell MyWebSocket what to do next
                 let io_response = IOResponse {
                     message,
-                    success: song_downloaded,
+                    success,
                     additional_action,
                 };
                 msg.sender_address.do_send(io_response);

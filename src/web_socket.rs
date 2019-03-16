@@ -26,13 +26,10 @@ const ONE_SECOND: Duration = Duration::from_secs(1);
 
 impl MyWebSocket {
     fn broadcast_state(&self, ctx: &mut <Self as Actor>::Context) {
-        // this interval is not needed at this moment
-        // ctx.run_interval(ONE_SECOND, |act, ctx| {
-        //     let x = ctx.state().current_song.lock().unwrap().clone();
-        //     println!("I am running");
-        //     ctx.text(&x);
-        //     // ctx.text("hello");
-        // });
+        //this interval is not needed at this moment
+        // &ctx.run_interval(ONE_SECOND, |act, ctx| {
+        // ctx.text("hello");
+        //   });
     }
 }
 
@@ -98,9 +95,11 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
 impl Handler<IOResponse> for MyWebSocket {
     type Result = ();
     fn handle(&mut self, msg: IOResponse, ctx: &mut Self::Context) -> Self::Result {
+        println!("{:#?}", *(ctx.state().songs_queue.lock().unwrap()));
         match msg.additional_action {
-            AdditionalAction::SaveSongToState { song_name } => {
-                *(ctx.state().current_song.lock().unwrap()) = song_name;
+            AdditionalAction::SaveSongToState { song } => {
+                *(ctx.state().current_song.lock().unwrap()) = song.name.clone();
+                ctx.state().songs_queue.lock().unwrap().push(song);
             }
             _ => (),
         };

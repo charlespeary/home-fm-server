@@ -1,4 +1,5 @@
 use super::io::MyIO;
+use super::song::Song;
 use super::web_socket::ws_index;
 use actix::sync::SyncArbiter;
 use actix::Addr;
@@ -9,6 +10,7 @@ use std::sync::{Arc, Mutex};
 pub struct AppState {
     pub current_song: Arc<Mutex<String>>,
     pub IO: Addr<MyIO>,
+    pub songs_queue: Arc<Mutex<Vec<Song>>>,
 }
 
 pub struct System {}
@@ -28,6 +30,7 @@ impl System {
         let state = AppState {
             current_song: Arc::new(Mutex::new(String::new())),
             IO: addr.clone(),
+            songs_queue: Arc::new(Mutex::new(Vec::new())),
         };
 
         let mut server = server::new(move || {
