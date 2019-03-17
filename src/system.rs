@@ -1,6 +1,8 @@
 use super::io::MyIO;
+use super::radio::Radio;
 use super::song::Song;
 use super::web_socket::ws_index;
+use actix::prelude::*;
 use actix::sync::SyncArbiter;
 use actix::Addr;
 use actix_web::{middleware, server, App};
@@ -26,13 +28,11 @@ impl System {
         // Initial state of the app filled with Arc<Mutex>> to make it shareable between states
 
         let addr = SyncArbiter::start(num_cpus::get(), move || MyIO {});
-
         let state = AppState {
             current_song: Arc::new(Mutex::new(String::new())),
             IO: addr.clone(),
             songs_queue: Arc::new(Mutex::new(Vec::new())),
         };
-
         let mut server = server::new(move || {
             App::with_state(state.clone()) // <- create app with shared state
                 // add our resources (routes)

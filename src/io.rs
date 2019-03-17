@@ -20,7 +20,7 @@ pub struct IOMessage {
 
 #[derive(Debug)]
 pub enum AdditionalAction {
-    SaveSongToState { song: Song },
+    ScheduleSong { song: Song },
     None,
 }
 
@@ -43,7 +43,7 @@ impl Handler<IOMessage> for MyIO {
                     // if song was downloaded save it's name to the state
                     match song {
                         Ok(song) => (
-                            AdditionalAction::SaveSongToState { song },
+                            AdditionalAction::ScheduleSong { song },
                             "song_download_success".to_owned(),
                             true,
                         ),
