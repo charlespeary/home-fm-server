@@ -13,6 +13,7 @@ pub struct AppState {
     pub current_song: Arc<Mutex<String>>,
     pub IO: Addr<MyIO>,
     pub songs_queue: Arc<Mutex<Vec<Song>>>,
+    pub radio: Addr<Radio>,
 }
 
 pub struct System {}
@@ -28,10 +29,13 @@ impl System {
         // Initial state of the app filled with Arc<Mutex>> to make it shareable between states
 
         let addr = SyncArbiter::start(num_cpus::get(), move || MyIO {});
+        let radio = Radio { IO: addr.clone() }.start();
+        //  radio.start();
         let state = AppState {
             current_song: Arc::new(Mutex::new(String::new())),
             IO: addr.clone(),
             songs_queue: Arc::new(Mutex::new(Vec::new())),
+            radio: radio.clone(),
         };
         let mut server = server::new(move || {
             App::with_state(state.clone()) // <- create app with shared state

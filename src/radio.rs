@@ -1,28 +1,47 @@
 use super::io::MyIO;
-use super::song::{play_song, Song};
+use super::song::Song;
+use super::web_socket::MyWebSocket;
 use actix::*;
-use std::time::Duration;
+use std::{thread, time};
+
+#[derive(Message)]
+pub enum RadioResponse {
+	NextSong,
+}
+
 pub struct Radio {
-    pub song_queue: Vec<Song>,
-    pub IO: Addr<MyIO>,
+	pub IO: Addr<MyIO>,
 }
 
 impl Radio {}
 
 impl Actor for Radio {
-    type Context = SyncContext<Self>;
+	type Context = Context<Self>;
 }
 
 #[derive(Message)]
 pub enum RadioJob {
-    PlaySong { song: Song },
+	PlaySong {
+		song: Song,
+		ws_addr: Addr<MyWebSocket>,
+	},
 }
 
 impl Handler<RadioJob> for Radio {
-    type Result = ();
-    fn handle(&mut self, msg: RadioJob, ctx: &mut Self::Context) -> Self::Result {
-        match msg {
-            RadioJob::PlaySong { song } => {}
-        }
-    }
+	type Result = ();
+	fn handle(&mut self, msg: RadioJob, ctx: &mut Self::Context) -> Self::Result {
+		match msg {
+			RadioJob::PlaySong { song, ws_addr } => {
+				self.play_song(&song);
+				ws_addr.do_send(RadioResponse::NextSong)
+			}
+		}
+	}
+}
+
+impl Radio {
+	pub fn play_song(&self, song: &Song) {
+		let five_secs = time::Duration::from_secs(5);
+		thread::sleep(five_secs);
+	}
 }

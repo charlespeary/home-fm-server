@@ -1,6 +1,7 @@
 use super::io::*;
 use super::io::{AdditionalAction, IOJob, IOResponse};
-use super::song::Song;
+use super::radio::{RadioJob, RadioResponse};
+use super::song::{get_random_song, Song};
 use super::system::AppState;
 use ::actix::*;
 use actix_web::*;
@@ -18,22 +19,36 @@ impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self, AppState>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        println!("Websocket spawned");
-        self.broadcast_state(ctx);
+        self.next_song(ctx);
     }
 }
 
 const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
 impl MyWebSocket {
-    fn broadcast_state(&self, ctx: &mut <Self as Actor>::Context) {
-        // this interval is not needed at this moment
-        ctx.run_interval(FIVE_SECONDS, |act, ctx| {
-            let songs = ctx.state().songs_queue.lock().unwrap();
-            let json = serde_json::to_string_pretty(&*songs).unwrap();
-            drop(songs);
-            ctx.text(json);
+    fn next_song(&self, ctx: &mut <Self as Actor>::Context) {
+        let mut songs_queue = ctx.state().songs_queue.lock().unwrap();
+        let next_song = if let Some(song) = songs_queue.first() {
+            let song = song.clone();
+            songs_queue.remove(0);
+            song
+        } else {
+            get_random_song()
+        };
+        drop(songs_queue);
+
+        ctx.state().radio.do_send(RadioJob::PlaySong {
+            song: next_song.clone(),
+            ws_addr: ctx.address(),
         });
+
+        let response = MyResponse::<Song> {
+            success: true,
+            action: "next_song".to_owned(),
+            value: next_song,
+        };
+
+        ctx.text(serde_json::to_string(&response).unwrap());
     }
 }
 
@@ -114,5 +129,16 @@ impl Handler<IOResponse> for MyWebSocket {
                 ctx.text(serde_json::to_string(&response).unwrap());
             }
         };
+    }
+}
+
+impl Handler<RadioResponse> for MyWebSocket {
+    type Result = ();
+    fn handle(&mut self, msg: RadioResponse, ctx: &mut Self::Context) -> Self::Result {
+        match msg {
+            RadioResponse::NextSong => {
+                self.next_song(ctx);
+            }
+        }
     }
 }
