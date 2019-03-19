@@ -39,6 +39,11 @@ impl Handler<RadioJob> for Radio {
 	}
 }
 
+// fn get_script_path() -> String {
+// 	let static_path = PathBuf::from("fm_transmitter-master");
+// 	format!("{}/PiStation.py", static_path.display())
+// }
+
 impl Radio {
 	pub fn play_song(&self, song: &Song) {
 		let five_secs = time::Duration::from_secs(5);

@@ -1,33 +1,35 @@
-use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const path_to_all_songs: &str = "static/songs/all_songs";
+const PATH_TO_SONGS_LIST: &str = "static/songs/all_songs";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Song {
-	pub name: String,
-	pub path: String,
-	pub duration: u16,
+	name: String,
+	path: String,
+	duration: u16,
 }
+
 // TODO: get rid of so many clones in my codebase,
 // find a way to return random song straight from the json
 // instead of serializing big vectors of songs
 pub fn get_random_song() -> Song {
-	let mut available_songs = read_available_songs();
-	let mut rng = rand::thread_rng();
-	if let Some(song) = available_songs.choose(&mut rng).cloned() {
-		song
-	} else {
-		return Song {
+	// number of available songs in json list
+	let available_songs_len = count_songs_in_list();
+	if available_songs_len == 0 {
+		Song {
 			path: "xd".to_owned(),
 			name: "xd".to_owned(),
 			duration: 30,
-		};
+		}
+	} else {
+		let random_index = rand::thread_rng().gen_range(0, available_songs_len);
+		get_song_from_file(random_index)
 	}
 }
 
@@ -39,11 +41,6 @@ pub fn get_song_path(song_name: &str) -> String {
 
 fn get_json_path(song_path: &str) -> String {
 	format!("{}.info.json", song_path)
-}
-
-fn get_script_path() -> String {
-	let static_path = PathBuf::from("fm_transmitter-master");
-	format!("{}/PiStation.py", static_path.display())
 }
 
 /// check if song is already downloaded
@@ -73,6 +70,7 @@ pub fn download_song(song_name: &str) -> Result<Song, ()> {
 		let song = read_song_from_json(&song_path);
 		// return song if it was sucessfully read from json file otherwise continue
 		if song.is_ok() {
+			println!("Song was already downloaded");
 			return Ok(song.unwrap());
 		}
 	}
@@ -87,10 +85,13 @@ pub fn download_song(song_name: &str) -> Result<Song, ()> {
 		// save file in /static/songs directory
 		.arg(format!("-o{}", song_path))
 		.arg("--write-info-json")
-		.output()
-		.unwrap();
+		.output();
+	if output.is_ok() {
+		get_song_info(&song_path, song_name)
+	} else {
+		Err(())
+	}
 	// decode duration from .info.json that youtube-dl downloads
-	get_song_info(&song_path, song_name)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -108,29 +109,37 @@ fn create_lightweight_json(json_path: &str, song: &Song) {
 	//File::create(json_path).unwrap().write(&song);
 }
 
-fn read_available_songs() -> Vec<Song> {
-	let json_path = get_json_path(path_to_all_songs);
+fn count_songs_in_list() -> usize {
+	let json_path = get_json_path(PATH_TO_SONGS_LIST);
 	let file = fs::File::open(&json_path);
 	match file {
-		Ok(file) => {
-			let reader = BufReader::new(file);
-			let songs_available: Vec<Song> = serde_json::from_reader(reader).unwrap();
-			songs_available
-		}
-		_ => Vec::<Song>::new(),
+		Ok(file) => BufReader::new(file).lines().count(),
+		_ => 0,
 	}
+}
+
+fn get_song_from_file(index: usize) -> Song {
+	let json_path = get_json_path(PATH_TO_SONGS_LIST);
+	let f = fs::File::open(json_path).unwrap();
+	let f = BufReader::new(f);
+	let raw_song = f.lines().nth(index).unwrap().unwrap();
+	serde_json::from_str(&raw_song).unwrap()
 }
 
 /// add song to json containing all available songs
 /// in case if user doesn't specify next song to be played
 /// a next song will be read from this list
 fn add_song_to_list(song: &Song) {
-	let json_path = get_json_path(path_to_all_songs);
-	let mut songs_available = read_available_songs();
-	songs_available.push(song.clone());
-	println!("{:#?}", songs_available);
-	let songs_available_json = serde_json::to_vec(&songs_available).unwrap();
-	fs::write(json_path, songs_available_json).unwrap();
+	let json_path = get_json_path(PATH_TO_SONGS_LIST);
+	let mut file = fs::OpenOptions::new()
+		.create(true)
+		.append(true)
+		.open(json_path)
+		.unwrap();
+	let deserialized_song = serde_json::to_string(song).unwrap();
+	if let Err(e) = writeln!(file, "{}", deserialized_song) {
+		eprintln!("Couldn't write to file: {}", e);
+	}
 }
 
 fn get_song_info(song_path: &str, song_name: &str) -> Result<Song, ()> {
