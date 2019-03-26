@@ -2,18 +2,21 @@ use super::io::MyIO;
 use super::radio::Radio;
 use super::song::Song;
 use super::web_socket::ws_index;
+use crate::db::DBExecutor;
 use actix::prelude::*;
 use actix::sync::SyncArbiter;
 use actix::Addr;
 use actix_web::{middleware, server, App};
 use listenfd::ListenFd;
 use std::sync::{Arc, Mutex};
+
 #[derive(Clone)]
 pub struct AppState {
     pub current_song: Arc<Mutex<String>>,
     pub IO: Addr<MyIO>,
     pub songs_queue: Arc<Mutex<Vec<Song>>>,
     pub radio: Addr<Radio>,
+    pub db: Addr<DBExecutor>,
 }
 
 pub struct System {}
@@ -30,13 +33,16 @@ impl System {
 
         let addr = SyncArbiter::start(num_cpus::get(), move || MyIO {});
         let radio = Radio { IO: addr.clone() }.start();
-        //  radio.start();
+        let db = SyncArbiter::start(num_cpus::get(), move || DBExecutor::new());
+
         let state = AppState {
             current_song: Arc::new(Mutex::new(String::new())),
             IO: addr.clone(),
             songs_queue: Arc::new(Mutex::new(Vec::new())),
             radio: radio.clone(),
+            db: db.clone(),
         };
+
         let mut server = server::new(move || {
             App::with_state(state.clone()) // <- create app with shared state
                 // add our resources (routes)

@@ -5,6 +5,7 @@ mod io;
 mod radio;
 mod system;
 mod web_socket;
+mod db;
 use system::System;
 extern crate num_cpus;
 

@@ -12,3 +12,5 @@ Cargo.lock
 home-fm-server.iml
 fm_transmitter-master
 .vscode/**
+.env
+db
