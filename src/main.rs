@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 #[macro_use]
 mod song;
+mod client_publisher;
 mod db;
 mod io;
 mod radio;

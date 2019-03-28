@@ -2,6 +2,7 @@ use super::song::{download_song, Song};
 use super::web_socket::MyWebSocket;
 use crate::db::DBExecutor;
 use actix::*;
+use std::sync::Arc;
 
 pub struct MyIO {
     pub db: Addr<DBExecutor>,

@@ -10,14 +10,7 @@ use actix_web::{middleware, server, App};
 use listenfd::ListenFd;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone)]
-pub struct AppState {
-    pub current_song: Arc<Mutex<String>>,
-    pub IO: Addr<MyIO>,
-    pub songs_queue: Arc<Mutex<Vec<Song>>>,
-    pub radio: Addr<Radio>,
-    pub db: Addr<DBExecutor>,
-}
+// TODO: move songs_queue into radio, so song playing logic and managing queue will be done independently in radio actor
 
 pub struct System {}
 
@@ -33,21 +26,18 @@ impl System {
 
         // start all of the needed actors and clone their addresses where they're needed
         let db = SyncArbiter::start(num_cpus::get(), move || DBExecutor::new());
+        let second_db_addr = db.clone();
         // how can I simplify this, so I won't run into borrowing problems after db move into the closure?
-        let db_addr = db.clone();
         let io = SyncArbiter::start(num_cpus::get(), move || MyIO { db: db.clone() });
-        let radio = Radio { IO: io.clone() }.start();
 
-        let state = AppState {
-            current_song: Arc::new(Mutex::new(String::new())),
+        let radio = SyncArbiter::start(num_cpus::get(), move || Radio {
             IO: io.clone(),
-            songs_queue: Arc::new(Mutex::new(Vec::new())),
-            radio: radio.clone(),
-            db: db_addr.clone(),
-        };
+            db: second_db_addr.clone(),
+            songs_queue: Vec::new(),
+        });
 
-        let mut server = server::new(move || {
-            App::with_state(state.clone()) // <- create app with shared state
+        let mut server = server::new(|| {
+            App::new() // <- create app with shared state
                 // add our resources (routes)
                 .resource("/ws/", |r| r.route().f(ws_index))
                 // add middleware to log stuff

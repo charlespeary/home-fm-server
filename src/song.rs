@@ -24,6 +24,7 @@ pub struct NewSong {
     path: String,
     duration: i32,
 }
+pub struct GetRandomSong;
 
 // TODO: get rid of so many clones in my codebase,
 // find a way to return random song straight from the json

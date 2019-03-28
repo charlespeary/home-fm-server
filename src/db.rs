@@ -1,5 +1,5 @@
 use super::schema::songs;
-use crate::song::{NewSong, Song};
+use crate::song::{GetRandomSong, NewSong, Song};
 use actix::{Actor, Handler, Message, SyncContext};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
@@ -49,8 +49,6 @@ pub enum DBResponse {
     SongCreationFailure,
     UnkownAction,
 }
-
-pub struct GetRandomSong;
 
 impl Message for GetRandomSong {
     type Result = Result<Song, Error>;

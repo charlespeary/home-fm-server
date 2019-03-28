@@ -3,67 +3,34 @@ use super::io::*;
 use super::io::{AdditionalAction, IOJob, IOResponse};
 use super::radio::{RadioJob, RadioResponse};
 use super::song::Song;
-use super::system::AppState;
-use crate::db::{DBResponse, GetRandomSong};
+use crate::client_publisher::{ClientPublisher, RegisterWS};
 use actix_web::*;
-use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// do websocket handshake and start `MyWebSocket` actor
-pub fn ws_index(r: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
+pub fn ws_index(r: &HttpRequest) -> Result<HttpResponse, Error> {
     ws::start(r, MyWebSocket {})
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MyWebSocket;
 
 impl Actor for MyWebSocket {
-    type Context = ws::WebsocketContext<Self, AppState>;
+    type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.next_song(ctx);
+        // get ClientPublisher address and send address of websocket to it
+        let publisher_addr = ClientPublisher::from_registry();
+        publisher_addr.send(RegisterWS {
+            addr: ctx.address(),
+        });
     }
 }
 
 const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
 impl MyWebSocket {
-    fn next_song(&self, ctx: &mut <Self as Actor>::Context) {
-        let mut songs_queue = ctx.state().songs_queue.lock().unwrap();
-        if let Some(song) = songs_queue.first() {
-            let song = song.clone();
-            songs_queue.remove(0);
-            ctx.state().radio.do_send(RadioJob::PlaySong {
-                song: song.clone(),
-                ws_addr: ctx.address(),
-            });
-            drop(songs_queue);
-        //   send_next_song(ctx, &song);
-        } else {
-            drop(songs_queue);
-            println!("Future is coming!");
-            let future = ctx.state().db.send(GetRandomSong {});
-            // clone radio and websocket addresses in order to move them inside future closure
-            let radio_addr = ctx.state().radio.clone();
-            let ws_addr = ctx.address();
-            Arbiter::spawn(
-                future
-                    .map(move |res| {
-                        let radio = radio_addr.clone();
-                        let mut ws_addr = ws_addr.clone();
-                        let song = res.unwrap();
-                        send_next_song(&ws_addr, &song);
-                        radio.do_send(RadioJob::PlaySong {
-                            song: song.clone(),
-                            ws_addr,
-                        });
-                    })
-                    .map_err(|e| println!("something went wrong")),
-            );
-        };
-    }
-
     fn send_message<T>(&self, ctx: &mut <Self as Actor>::Context, msg: &UserMessage<T>)
     where
         T: Serialize,
@@ -122,12 +89,12 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                         // download song and set it to active, in case of any errors notify client about it
                         //     set_current_song(&action_object.payload.as_str(), ctx);
                         println!("{}", action_object.payload);
-                        ctx.state().IO.do_send(IOMessage {
-                            action: IOJob::DownloadSong {
-                                song_name: action_object.payload,
-                            },
-                            sender_address: ctx.address(),
-                        });
+                        //                        self.IO.do_send(IOMessage {
+                        //                            action: IOJob::DownloadSong {
+                        //                                song_name: action_object.payload,
+                        //                            },
+                        //                            sender_address: ctx.address(),
+                        //                        });
                         let response = UserMessage::<EmptyValue> {
                             success: true,
                             action: "start_song_download".to_owned(),
@@ -158,13 +125,13 @@ impl Handler<IOResponse> for MyWebSocket {
     fn handle(&mut self, msg: IOResponse, ctx: &mut Self::Context) -> Self::Result {
         match msg.additional_action {
             AdditionalAction::ScheduleSong { song } => {
-                ctx.state().songs_queue.lock().unwrap().push(song.clone());
-                let response = UserMessage::<Song> {
-                    success: msg.success,
-                    action: msg.message,
-                    value: song.clone(),
-                };
-                self.send_message(ctx, &response);
+                //                ctx.state().songs_queue.lock().unwrap().push(song.clone());
+                //                let response = UserMessage::<Song> {
+                //                    success: msg.success,
+                //                    action: msg.message,
+                //                    value: song.clone(),
+                //                };
+                //                self.send_message(ctx, &response);
             }
             _ => {
                 let response = UserMessage::<EmptyValue> {
@@ -176,17 +143,6 @@ impl Handler<IOResponse> for MyWebSocket {
             }
         };
         ()
-    }
-}
-
-impl Handler<RadioResponse> for MyWebSocket {
-    type Result = ();
-    fn handle(&mut self, msg: RadioResponse, ctx: &mut Self::Context) -> Self::Result {
-        match msg {
-            RadioResponse::NextSong => {
-                self.next_song(ctx);
-            }
-        }
     }
 }
 
