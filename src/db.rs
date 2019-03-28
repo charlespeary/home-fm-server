@@ -1,10 +1,10 @@
 use super::schema::songs;
-use crate::db::DBResponse::SongExists;
 use crate::song::{NewSong, Song};
 use actix::{Actor, Handler, Message, SyncContext};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
+use failure::Error;
 use std::env;
 
 fn get_connection() -> SqliteConnection {
@@ -30,56 +30,70 @@ impl DBExecutor {
     }
 }
 
-enum DBAction {
+pub enum DBAction {
     SaveSong { song: NewSong },
     GetRandomSong,
     CheckIfSongExists { song_name: String },
 }
 
 impl Message for DBAction {
-    type Result = Result<DBResponse, DBError>;
+    type Result = Result<DBResponse, Error>;
 }
 
-enum DBResponse {
+#[derive(Debug)]
+pub enum DBResponse {
     SongExists,
     SongCreated,
     RandomSong { song: Song },
-}
-
-enum DBError {
     SongNotFound,
     SongCreationFailure,
     UnkownAction,
 }
 
-impl Handler<DBAction> for DBExecutor {
-    type Result = Result<DBResponse, DBError>;
-    fn handle(&mut self, msg: DBAction, ctx: &mut Self::Context) -> Self::Result {
-        match msg {
-            DBAction::CheckIfSongExists { song_name } => {
-                let exists = check_if_exsists(&self.conn, song_name);
-                if exists {
-                    Ok(DBResponse::SongExists)
-                } else {
-                    Err(DBError::SongNotFound)
-                }
-            }
-            DBAction::GetRandomSong => {
-                let song = get_random_song(&self.conn);
-                Ok(DBResponse::RandomSong { song })
-            }
-            DBAction::SaveSong { song } => {
-                let success = save_song(&self.conn, &song);
-                if success {
-                    Ok(DBResponse::SongCreated)
-                } else {
-                    Err(DBError::SongCreationFailure)
-                }
-            }
-            _ => Err(DBError::UnkownAction),
-        }
+pub struct GetRandomSong;
+
+impl Message for GetRandomSong {
+    type Result = Result<Song, Error>;
+}
+
+impl Handler<GetRandomSong> for DBExecutor {
+    type Result = Result<Song, Error>;
+
+    fn handle(&mut self, msg: GetRandomSong, ctx: &mut Self::Context) -> Self::Result {
+        let song = get_random_song(&self.conn);
+        Ok(song)
     }
 }
+
+//impl Handler<DBAction> for DBExecutor {
+//    type Result = Result<DBResponse, Error>;
+//    fn handle(&mut self, msg: DBAction, ctx: &mut Self::Context) -> Self::Result {
+//        match msg {
+//            DBAction::CheckIfSongExists { song_name } => {
+//                let exists = check_if_exists(&self.conn, song_name);
+//                if exists {
+//                    Ok(DBResponse::SongExists)
+//                } else {
+//                    Ok(DBResponse::SongNotFound)
+//                }
+//            }
+//            DBAction::GetRandomSong => {
+//                let song = get_random_song(&self.conn);
+//                println!("{:#?}", song);
+//                Ok(DBResponse::RandomSong { song })
+//            }
+//            DBAction::SaveSong { song } => {
+//                let success = save_song(&self.conn, &song);
+//                if success {
+//                    Ok(DBResponse::SongCreated)
+//                } else {
+//                    Ok(DBResponse::SongCreationFailure)
+//                }
+//            }
+//            _ => Ok(DBResponse::UnkownAction),
+//        }
+//    }
+//}
 
 fn get_random_song(conn: &SqliteConnection) -> Song {
     no_arg_sql_function!(RANDOM, (), "Represents the sql RANDOM() function");

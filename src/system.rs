@@ -31,16 +31,19 @@ impl System {
 
         // Initial state of the app filled with Arc<Mutex>> to make it shareable between states
 
-        let addr = SyncArbiter::start(num_cpus::get(), move || MyIO {});
-        let radio = Radio { IO: addr.clone() }.start();
+        // start all of the needed actors and clone their addresses where they're needed
         let db = SyncArbiter::start(num_cpus::get(), move || DBExecutor::new());
+        // how can I simplify this, so I won't run into borrowing problems after db move into the closure?
+        let db_addr = db.clone();
+        let io = SyncArbiter::start(num_cpus::get(), move || MyIO { db: db.clone() });
+        let radio = Radio { IO: io.clone() }.start();
 
         let state = AppState {
             current_song: Arc::new(Mutex::new(String::new())),
-            IO: addr.clone(),
+            IO: io.clone(),
             songs_queue: Arc::new(Mutex::new(Vec::new())),
             radio: radio.clone(),
-            db: db.clone(),
+            db: db_addr.clone(),
         };
 
         let mut server = server::new(move || {

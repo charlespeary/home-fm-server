@@ -1,7 +1,11 @@
 use super::song::{download_song, Song};
 use super::web_socket::MyWebSocket;
+use crate::db::DBExecutor;
 use actix::*;
-pub struct MyIO;
+
+pub struct MyIO {
+    pub db: Addr<DBExecutor>,
+}
 
 #[derive(Debug)]
 pub enum IOJob {
