@@ -6,6 +6,7 @@ mod db;
 mod io;
 mod radio;
 mod schema;
+mod song_queue;
 mod system;
 mod web_socket;
 use system::System;
