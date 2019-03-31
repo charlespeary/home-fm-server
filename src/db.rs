@@ -1,12 +1,10 @@
 use super::schema::songs;
 use crate::song::{GetRandomSong, NewSong, Song};
-use actix::{Actor, Handler, Message, SyncContext};
+use actix::{Actor, Context, Handler, Message};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
 use diesel::result::Error as DieselError;
 use diesel::sqlite::SqliteConnection;
-use dotenv::dotenv;
-use std::env;
 
 pub type Conn = SqliteConnection;
 pub type SqlPool = Pool<ConnectionManager<Conn>>;
@@ -25,14 +23,11 @@ pub struct DBExecutor {
 }
 
 impl Actor for DBExecutor {
-    type Context = SyncContext<Self>;
+    type Context = Context<Self>;
 }
 
 impl DBExecutor {
-    pub fn new() -> Self {
-        dotenv().ok();
-        let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-        let conn = new_pool(database_url).expect("Failed to create pool");
+    pub fn new(conn: SqlPool) -> Self {
         DBExecutor { conn }
     }
 
@@ -105,5 +100,7 @@ fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {
 
 fn get_song(conn: &PooledConn, song_name: String) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::name;
-    songs::table.filter(name.eq(song_name)).first::<Song>(conn)
+    let song = songs::table.filter(name.eq(song_name)).first::<Song>(conn);
+    println!("found song - {:#?}", song);
+    song
 }

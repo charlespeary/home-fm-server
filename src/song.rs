@@ -23,9 +23,9 @@ impl SongRequest {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 pub struct Song {
     id: i32,
-    name: String,
+    pub name: String,
     path: String,
-    duration: i32,
+    pub duration: i32,
 }
 
 #[derive(Insertable, Clone, Debug)]
