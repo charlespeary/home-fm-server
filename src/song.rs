@@ -53,6 +53,7 @@ fn get_json_path(song_path: &str) -> String {
 pub fn download_song(song_name: &str) -> Result<NewSong, ()> {
     let song_path = get_song_path(song_name);
     let search_query: &str = &format!("ytsearch1:{}", song_name);
+    println!("I just started downloading a song - {}", song_name);
     let output = Command::new("youtube-dl")
         // download one song from youtube
         .arg(search_query)
@@ -65,6 +66,7 @@ pub fn download_song(song_name: &str) -> Result<NewSong, ()> {
         .arg("--write-info-json")
         .output();
     if output.is_ok() {
+        println!("Successfully downloaded a song - {}", song_name);
         get_song_info(&song_path, song_name)
     } else {
         Err(())

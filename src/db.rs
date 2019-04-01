@@ -92,15 +92,11 @@ fn get_random_song(conn: &PooledConn) -> Song {
 }
 
 fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {
-    println!("saving song - {:#?}", song);
-    let x = diesel::insert_into(songs::table).values(song).execute(conn);
-    println!("Song saved - {:#?}", song);
+    diesel::insert_into(songs::table).values(song).execute(conn);
     get_song(conn, song.name.clone())
 }
 
 fn get_song(conn: &PooledConn, song_name: String) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::name;
-    let song = songs::table.filter(name.eq(song_name)).first::<Song>(conn);
-    println!("found song - {:#?}", song);
-    song
+    songs::table.filter(name.eq(song_name)).first::<Song>(conn)
 }

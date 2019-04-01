@@ -10,7 +10,10 @@ use crate::web_socket::UserMessage;
 use actix::fut::wrap_future;
 use actix::*;
 use futures::future::Future;
+use serde::Serialize;
 
+// TODO: I might need SyncContext for scenarios in which many songs come at once
+// Basically it's working fine, but it takes some time just for one actor
 pub struct SongQueue {
     pub IO: Addr<MyIO>,
     pub db: Addr<DBExecutor>,
@@ -40,6 +43,12 @@ impl Handler<QueueJob> for SongQueue {
     }
 }
 
+#[derive(Serialize, Clone)]
+pub struct NextSongInfo {
+    pub next_song: Song,
+    pub songs_queue: Vec<Song>,
+}
+
 impl SongQueue {
     pub fn play_song(&mut self, ctx: &mut Context<SongQueue>, song: &Song) {
         self.radio.do_send(radio::PlaySong {
@@ -53,10 +62,13 @@ impl SongQueue {
         match radio_job {
             QueueJob::PlaySong { song } => {
                 self.play_song(ctx, &song);
-                let response = UserMessage::<Song> {
+                let response = UserMessage::<NextSongInfo> {
                     success: true,
                     action: "play_song".to_owned(),
-                    value: song.clone(),
+                    value: NextSongInfo {
+                        next_song: song,
+                        songs_queue: self.songs_queue.clone(),
+                    },
                 };
                 ClientPublisher::from_registry().do_send(response);
             }
@@ -76,7 +88,7 @@ impl SongQueue {
             self.songs_queue.remove(0);
         } else {
             //  println!("just playing some random stuff");
-            let future = actix::fut::wrap_future::<_, Self>(self.db.send(GetRandomSong {}));
+            let future = wrap_future::<_, Self>(self.db.send(GetRandomSong {}));
             ctx.spawn(
                 future //
                     .map(move |res, actor, ctx| {
@@ -87,24 +99,27 @@ impl SongQueue {
             );
         }
     }
-
+    // TODO: Check if song is already downloaded
     fn download_song(&mut self, ctx: &mut Context<SongQueue>, requested_song: SongRequest) {
         ctx.spawn(
             wrap_future::<_, Self>(self.IO.send(DownloadSong {
                 song_name: requested_song.get_name(),
             }))
             .map(|song, actor, ctx| {
+                println!("Song downloaded ");
                 let song = song.unwrap();
                 actor.db.send(SaveSong { song }).map(|song| song.unwrap())
             })
             .and_then(|res, actor, ctx| wrap_future(res))
             .and_then(|song, actor, ctx| {
+                println!("Song saved to db ");
                 actor.handle_activities(ctx, QueueJob::ScheduleSong { song: song.clone() });
                 let response = UserMessage::<Song> {
                     success: true,
                     action: "song_download_finished".to_owned(),
                     value: song,
                 };
+                println!("Sending response");
                 wrap_future(ClientPublisher::from_registry().send(response))
             })
             .map_err(|e, a, c| println!("db crashed - {:#?}", e)),

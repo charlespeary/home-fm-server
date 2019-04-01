@@ -28,7 +28,8 @@ impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
         println!("Radio is going to play a song!");
-        let timeout = time::Duration::from_secs(msg.song.duration as u64);
+        // let timeout = time::Duration::from_secs(msg.song.duration as u64);
+        let timeout = time::Duration::from_secs(15);
         thread::sleep(timeout);
         msg.queue_addr.do_send(NextSong {});
     }

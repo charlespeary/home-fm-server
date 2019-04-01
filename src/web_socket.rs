@@ -1,19 +1,27 @@
+use self::actix::fut::wrap_future;
 use self::actix::*;
-use crate::client_publisher::{ClientPublisher, RegisterWS};
+use crate::client_publisher::{ClientPublisher, DeleteWS, RegisterWS};
 use crate::song::SongRequest;
 use crate::song_queue::QueueJob;
 use crate::system::AppState;
 use actix_web::*;
+use futures::future::Future;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// do websocket handshake and start `MyWebSocket` actor
 pub fn ws_index(r: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
-    ws::start(r, MyWebSocket {})
+    ws::start(r, MyWebSocket::new())
 }
 
-#[derive(Debug, Default)]
-pub struct MyWebSocket;
+#[derive(Debug)]
+pub struct MyWebSocket {
+    // index in client registry
+    cr_index: Option<usize>,
+}
+
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self, AppState>;
@@ -21,8 +29,20 @@ impl Actor for MyWebSocket {
     fn started(&mut self, ctx: &mut Self::Context) {
         // get ClientPublisher address and send address of websocket to it
         let publisher_addr = ClientPublisher::from_registry();
-        publisher_addr.do_send(RegisterWS {
+        let future = wrap_future::<_, Self>(publisher_addr.send(RegisterWS {
             addr: ctx.address(),
+        }))
+        .map(|index, actor, ctx| {
+            // get index of the ws in client registry vector of clients in order to be able to delete it later
+            let index = index.unwrap();
+            actor.cr_index = Some(index);
+        });
+        ctx.spawn(future.map_err(|a, c, x| eprintln!("Error occured during deliver of message")));
+    }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        ClientPublisher::from_registry().do_send(DeleteWS {
+            index: self.cr_index.unwrap(),
         });
     }
 }
@@ -30,6 +50,10 @@ impl Actor for MyWebSocket {
 const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
 impl MyWebSocket {
+    pub fn new() -> Self {
+        MyWebSocket { cr_index: None }
+    }
+
     fn send_message<T>(&self, ctx: &mut <Self as Actor>::Context, msg: &UserMessage<T>)
     where
         T: Serialize,
@@ -76,7 +100,9 @@ struct EmptyValue {}
 impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
-            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Ping(msg) => {
+                ctx.pong(&msg);
+            }
             ws::Message::Text(text) => {
                 let request: Request = serde_json::from_str(&text).unwrap();
                 match request.action.as_str() {
