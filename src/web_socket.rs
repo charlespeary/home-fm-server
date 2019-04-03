@@ -1,4 +1,3 @@
-use self::actix::fut::wrap_future;
 use self::actix::*;
 use crate::client_publisher::{ClientPublisher, DeleteWS, RegisterWS};
 use crate::song::SongRequest;
@@ -15,34 +14,24 @@ pub fn ws_index(r: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
 }
 
 #[derive(Debug)]
-pub struct MyWebSocket {
-    // index in client registry
-    cr_index: Option<usize>,
-}
-
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+pub struct MyWebSocket;
 
 impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self, AppState>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // get ClientPublisher address and send address of websocket to it
+        println!("starting");
         let publisher_addr = ClientPublisher::from_registry();
-        let future = wrap_future::<_, Self>(publisher_addr.send(RegisterWS {
+        publisher_addr.do_send(RegisterWS {
             addr: ctx.address(),
-        }))
-        .map(|index, actor, ctx| {
-            // get index of the ws in client registry vector of clients in order to be able to delete it later
-            let index = index.unwrap();
-            actor.cr_index = Some(index);
         });
-        ctx.spawn(future.map_err(|a, c, x| eprintln!("Error occured during deliver of message")));
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
+        println!("stopping");
         ClientPublisher::from_registry().do_send(DeleteWS {
-            index: self.cr_index.unwrap(),
+            ws_addr: ctx.address(),
         });
     }
 }
@@ -51,7 +40,7 @@ const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
 impl MyWebSocket {
     pub fn new() -> Self {
-        MyWebSocket { cr_index: None }
+        MyWebSocket {}
     }
 
     fn send_message<T>(&self, ctx: &mut <Self as Actor>::Context, msg: &UserMessage<T>)
@@ -61,7 +50,6 @@ impl MyWebSocket {
         // serialize message to string in order to be able to send it
         match serde_json::to_string(msg) {
             Ok(message) => {
-                println!("Sending message : {}", message);
                 ctx.text(&message);
             }
             Err(e) => {
@@ -108,7 +96,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                 match request.action.as_str() {
                     "request_song" => {
                         let song: Payload<SongRequest> = serde_json::from_str(&text).unwrap();
-                        println!("requesting song");
+                        println!("Requesting song in WS");
                         ctx.state().queue_handler.do_send(QueueJob::DownloadSong {
                             requested_song: song.payload,
                         });

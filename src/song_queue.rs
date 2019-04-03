@@ -7,7 +7,6 @@ use crate::io::IOJob::DownloadSong;
 use crate::radio;
 use crate::song::{GetRandomSong, SongRequest};
 use crate::web_socket::UserMessage;
-use actix::dev::Request;
 use actix::fut::{wrap_future, FutureWrap, IntoActorFuture};
 use actix::*;
 use futures::future::{ok as fut_ok, Future};
@@ -15,6 +14,9 @@ use serde::Serialize;
 
 // TODO: I might need SyncContext for scenarios in which many songs come at once
 // Basically it's working fine, but it takes some time just for one actor
+
+type ActorContext = Context<SongQueue>;
+
 pub struct SongQueue {
     pub IO: Addr<MyIO>,
     pub db: Addr<DBExecutor>,
@@ -23,7 +25,7 @@ pub struct SongQueue {
 }
 
 impl Actor for SongQueue {
-    type Context = Context<Self>;
+    type Context = ActorContext;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.next_song(ctx);
@@ -39,7 +41,7 @@ pub enum QueueJob {
 
 impl Handler<QueueJob> for SongQueue {
     type Result = ();
-    fn handle(&mut self, msg: QueueJob, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: QueueJob, ctx: &mut ActorContext) -> Self::Result {
         self.handle_activities(ctx, msg);
     }
 }
@@ -51,15 +53,14 @@ pub struct NextSongInfo {
 }
 
 impl SongQueue {
-    pub fn play_song(&mut self, ctx: &mut Context<SongQueue>, song: &Song) {
+    pub fn play_song(&mut self, ctx: &mut ActorContext, song: &Song) {
         self.radio.do_send(radio::PlaySong {
             song: song.clone(),
             queue_addr: ctx.address(),
         });
     }
 
-    fn handle_activities(&mut self, ctx: &mut Context<SongQueue>, radio_job: QueueJob) {
-        //    println!("Incoming activity - {:#?}", radio_job);
+    fn handle_activities(&mut self, ctx: &mut ActorContext, radio_job: QueueJob) {
         match radio_job {
             QueueJob::PlaySong { song } => {
                 self.play_song(ctx, &song);
@@ -82,7 +83,7 @@ impl SongQueue {
         }
     }
 
-    fn next_song(&mut self, ctx: &mut Context<SongQueue>) {
+    fn next_song(&mut self, ctx: &mut ActorContext) {
         if let Some(song) = self.songs_queue.first() {
             self.handle_activities(ctx, QueueJob::PlaySong { song: song.clone() });
             self.songs_queue.remove(0);
@@ -102,7 +103,7 @@ impl SongQueue {
 
     fn schedule_song(
         &mut self,
-        ctx: &mut Context<SongQueue>,
+        ctx: &mut ActorContext,
         song: &Song,
     ) -> impl ActorFuture<Item = (), Error = MailboxError, Actor = SongQueue> {
         self.handle_activities(ctx, QueueJob::ScheduleSong { song: song.clone() });
@@ -111,13 +112,12 @@ impl SongQueue {
             action: "song_download_finished".to_owned(),
             value: song.clone(),
         };
-        println!("Sending response");
         wrap_future(ClientPublisher::from_registry().send(response))
     }
 
     fn get_song(
         &mut self,
-        ctx: &mut Context<SongQueue>,
+        ctx: &mut ActorContext,
         requested_song: SongRequest,
     ) -> impl ActorFuture<Item = Song, Error = MailboxError, Actor = SongQueue> {
         wrap_future::<_, Self>(self.IO.send(DownloadSong {
@@ -132,7 +132,7 @@ impl SongQueue {
     }
 
     // TODO: Check if song is already downloaded
-    fn download_song(&mut self, ctx: &mut Context<SongQueue>, requested_song: SongRequest) {
+    fn download_song(&mut self, ctx: &mut ActorContext, requested_song: SongRequest) {
         ctx.spawn(
             wrap_future::<_, Self>(self.db.send(CheckSongExistence {
                 song_name: requested_song.get_name(),

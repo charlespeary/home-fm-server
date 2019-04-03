@@ -60,6 +60,7 @@ impl Message for CheckSongExistence {
 impl Handler<CheckSongExistence> for DBExecutor {
     type Result = Result<Song, DieselError>;
     fn handle(&mut self, msg: CheckSongExistence, ctx: &mut Self::Context) -> Self::Result {
+        println!("checking if song exists");
         get_song(&self.get_conn(), msg.song_name)
     }
 }

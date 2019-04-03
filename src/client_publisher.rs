@@ -23,11 +23,11 @@ pub struct RegisterWS {
 }
 
 impl Message for RegisterWS {
-    type Result = Result<usize, ()>;
+    type Result = Result<(), ()>;
 }
 
 pub struct DeleteWS {
-    pub index: usize,
+    pub ws_addr: Addr<MyWebSocket>,
 }
 
 impl Message for DeleteWS {
@@ -38,27 +38,30 @@ impl Handler<DeleteWS> for ClientPublisher {
     // we return index of the websocket in the vector
     type Result = ();
     fn handle(&mut self, msg: DeleteWS, ctx: &mut Self::Context) -> Self::Result {
-        println!("{} {} ", self.websockets.len(), msg.index);
-        if self.websockets.len() < msg.index {
+        let mut index = 0;
+        let mut ws_found = false;
+        for (i, addr) in self.websockets.iter().enumerate() {
+            if addr.eq(&msg.ws_addr) {
+                index = i;
+                ws_found = true;
+            }
+        }
+
+        if !ws_found {
             return;
         }
-        self.websockets.remove(msg.index);
-        println!(
-            "Deleted ws at index - {}, length of vector after deletion - {} ",
-            msg.index,
-            self.websockets.len()
-        );
+        println!("Deleting ws at index - {}", index);
+        self.websockets.remove(index);
     }
 }
 
 impl Handler<RegisterWS> for ClientPublisher {
     // we return index of the websocket in the vector
-    type Result = Result<usize, ()>;
+    type Result = Result<(), ()>;
     fn handle(&mut self, msg: RegisterWS, ctx: &mut Self::Context) -> Self::Result {
-        // TODO : keep track of websockets that are not used anymore and delete them from the vector
+        println!("Registering new WS");
         self.websockets.push(msg.addr);
-        // minus 1, because we want to get index which is e.g 0 not 1 (we're not in Lua!!!)
-        Ok(self.websockets.len() - 1)
+        Ok(())
     }
 }
 
@@ -73,22 +76,3 @@ where
         }
     }
 }
-
-//pub struct RawMessage<'a> {
-//    message: &'a str,
-//}
-//
-//impl<'a> Message for RawMessage<'a> {
-//    type Result = ();
-//}
-//
-//impl<'a> Handler<RawMessage<'a>> for ClientPublisher
-//{
-//    type Result = ();
-//    fn handle(&mut self, msg: RawMessage, ctx: &mut Self::Context) -> Self::Result {
-//
-//        for ws in self.websockets.iter() {
-//            ws.do_send();
-//        }
-//    }
-//}
