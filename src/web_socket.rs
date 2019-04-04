@@ -1,7 +1,7 @@
 use self::actix::*;
 use crate::client_publisher::{ClientPublisher, DeleteWS, RegisterWS};
 use crate::song::SongRequest;
-use crate::song_queue::QueueJob;
+use crate::song_queue::{BroadcastState, QueueJob};
 use crate::system::AppState;
 use actix_web::*;
 use futures::future::Future;
@@ -21,11 +21,11 @@ impl Actor for MyWebSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // get ClientPublisher address and send address of websocket to it
-        println!("starting");
         let publisher_addr = ClientPublisher::from_registry();
         publisher_addr.do_send(RegisterWS {
             addr: ctx.address(),
         });
+        ctx.state().queue_handler.do_send(BroadcastState {});
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
@@ -81,8 +81,8 @@ impl<T> Message for UserMessage<T> {
     type Result = ();
 }
 
-#[derive(Serialize, Deserialize)]
-struct EmptyValue {}
+#[derive(Serialize, Deserialize, Clone)]
+pub struct EmptyValue {}
 
 /// Handler for ws::Message message
 impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
@@ -96,7 +96,6 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                 match request.action.as_str() {
                     "request_song" => {
                         let song: Payload<SongRequest> = serde_json::from_str(&text).unwrap();
-                        println!("Requesting song in WS");
                         ctx.state().queue_handler.do_send(QueueJob::DownloadSong {
                             requested_song: song.payload,
                         });

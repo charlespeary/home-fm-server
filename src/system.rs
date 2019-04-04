@@ -37,6 +37,7 @@ impl System {
             db: second_db_addr.clone(),
             songs_queue: Vec::new(),
             radio: radio.clone(),
+            active_song: None,
         }
         .start();
 

@@ -44,7 +44,7 @@ impl Handler<GetRandomSong> for DBExecutor {
     type Result = Result<Song, DieselError>;
 
     fn handle(&mut self, msg: GetRandomSong, ctx: &mut Self::Context) -> Self::Result {
-        Ok(get_random_song(&self.get_conn()))
+        get_random_song(&self.get_conn())
     }
 }
 
@@ -60,7 +60,6 @@ impl Message for CheckSongExistence {
 impl Handler<CheckSongExistence> for DBExecutor {
     type Result = Result<Song, DieselError>;
     fn handle(&mut self, msg: CheckSongExistence, ctx: &mut Self::Context) -> Self::Result {
-        println!("checking if song exists");
         get_song(&self.get_conn(), msg.song_name)
     }
 }
@@ -83,13 +82,9 @@ impl Handler<SaveSong> for DBExecutor {
 
 // in case of problems during save return random song to user via Err()
 
-fn get_random_song(conn: &PooledConn) -> Song {
+fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
     no_arg_sql_function!(RANDOM, (), "Represents the sql RANDOM() function");
-    songs::table
-        .order(RANDOM)
-        .limit(1)
-        .first::<Song>(conn)
-        .expect("unable to load songs")
+    songs::table.order(RANDOM).limit(1).first::<Song>(conn)
 }
 
 fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {
