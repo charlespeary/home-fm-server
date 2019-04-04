@@ -97,7 +97,10 @@ impl SongQueue {
             }
             QueueJob::ScheduleSong { song, requested_at } => {
                 self.songs_queue.push(ScheduledSong { song, requested_at });
-                // sort
+                if self.active_song.is_none() {
+                    self.next_song(ctx);
+                }
+                // sort songs by time they were requested at
                 self.sort_songs();
             }
         }
@@ -125,10 +128,8 @@ impl SongQueue {
                 future //
                     .map(move |res, actor, ctx| {
                         if let Ok(song) = res {
-                            println!("Song found");
                             actor.handle_activities(ctx, QueueJob::PlaySong { song });
                         } else {
-                            println!("no songs available");
                             let response = UserMessage::<EmptyValue> {
                                 success: false,
                                 action: "no_songs_available".to_owned(),
