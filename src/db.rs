@@ -51,6 +51,7 @@ impl Handler<GetRandomSong> for DBExecutor {
 // atm it's not needed
 pub struct CheckSongExistence {
     pub song_name: String,
+    pub artists: String,
 }
 
 impl Message for CheckSongExistence {
@@ -60,7 +61,7 @@ impl Message for CheckSongExistence {
 impl Handler<CheckSongExistence> for DBExecutor {
     type Result = Result<Song, DieselError>;
     fn handle(&mut self, msg: CheckSongExistence, ctx: &mut Self::Context) -> Self::Result {
-        get_song(&self.get_conn(), msg.song_name)
+        get_song(&self.get_conn(), msg.song_name, msg.artists)
     }
 }
 
@@ -89,10 +90,16 @@ fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
 
 fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {
     diesel::insert_into(songs::table).values(song).execute(conn);
-    get_song(conn, song.name.clone())
+    get_song(conn, song.name.clone(), song.artists.clone())
 }
 
-fn get_song(conn: &PooledConn, song_name: String) -> Result<Song, DieselError> {
-    use super::schema::songs::dsl::name;
-    songs::table.filter(name.eq(song_name)).first::<Song>(conn)
+fn get_song(
+    conn: &PooledConn,
+    song_name: String,
+    song_artists: String,
+) -> Result<Song, DieselError> {
+    use super::schema::songs::dsl::{artists, name};
+    songs::table
+        .filter(name.eq(song_name).and(artists.eq(song_artists)))
+        .first::<Song>(conn)
 }

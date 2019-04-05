@@ -1,7 +1,7 @@
 use super::schema::songs;
 use chrono::prelude::*;
 use diesel::{Insertable, Queryable};
-use serde::{Deserialize, Serialize};
+use serde::{self, Deserialize, Serialize, Serializer};
 use std::fs;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -9,10 +9,11 @@ use std::process::Command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SongRequest {
-    artists: Vec<String>,
-    name: String,
+    pub artists: String,
+    pub name: String,
     #[serde(skip_deserializing, default = "now")]
     pub requested_at: DateTime<Utc>,
+    thumbnail_url: String,
 }
 
 fn now() -> DateTime<Utc> {
@@ -20,9 +21,8 @@ fn now() -> DateTime<Utc> {
 }
 
 impl SongRequest {
-    pub fn get_name(&self) -> String {
-        let formatted_artists = self.artists.join(", ");
-        format!("{} - {}", self.name, formatted_artists)
+    pub fn get_formatted_name(&self) -> String {
+        format!("{} - {}", self.name, self.artists)
     }
 }
 
@@ -30,8 +30,11 @@ impl SongRequest {
 pub struct Song {
     id: i32,
     pub name: String,
+    #[serde(skip_serializing)]
     path: String,
     pub duration: i32,
+    thumbnail_url: String,
+    artists: String,
 }
 
 #[derive(Insertable, Clone, Debug)]
@@ -40,7 +43,11 @@ pub struct NewSong {
     pub name: String,
     path: String,
     duration: i32,
+    thumbnail_url: String,
+    // , separated array
+    pub artists: String,
 }
+
 pub struct GetRandomSong;
 
 pub fn get_song_path(song_name: &str) -> String {
@@ -53,9 +60,9 @@ fn get_json_path(song_path: &str) -> String {
 }
 
 // returns boolean - whether song was downloaded or not
-pub fn download_song(song_name: &str) -> Result<NewSong, ()> {
-    let song_path = get_song_path(song_name);
-    let search_query: &str = &format!("ytsearch1:{}", song_name);
+pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
+    let song_path = get_song_path(&requested_song.get_formatted_name());
+    let search_query: &str = &format!("ytsearch1:{}", &requested_song.name);
     let output = Command::new("youtube-dl")
         // download one song from youtube
         .arg(search_query)
@@ -68,7 +75,14 @@ pub fn download_song(song_name: &str) -> Result<NewSong, ()> {
         .arg("--write-info-json")
         .output();
     if output.is_ok() {
-        get_song_info(&song_path, song_name)
+        let info = get_song_info(&song_path, &requested_song.name).unwrap();
+        Ok(NewSong {
+            duration: info.duration,
+            name: requested_song.name.clone(),
+            artists: requested_song.artists.clone(),
+            thumbnail_url: requested_song.thumbnail_url.clone(),
+            path: song_path,
+        })
     } else {
         println!(
             "Error during downloading a song - {:#?}",
@@ -84,7 +98,7 @@ struct Info {
     duration: i32,
 }
 
-fn get_song_info(song_path: &str, song_name: &str) -> Result<NewSong, ()> {
+fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
     let json_path = get_json_path(song_path);
     let file = fs::File::open(&json_path);
     match file {
@@ -92,14 +106,7 @@ fn get_song_info(song_path: &str, song_name: &str) -> Result<NewSong, ()> {
             let reader = BufReader::new(file);
             let json_content: Info = serde_json::from_reader(reader).unwrap();
             fs::remove_file(json_path);
-            // create lightweight json
-            let song = NewSong {
-                path: song_path.to_owned(),
-                duration: json_content.duration,
-                name: song_name.to_owned(),
-            };
-
-            Ok(song)
+            Ok(json_content)
         }
         _ => {
             println!("error during opening a file");

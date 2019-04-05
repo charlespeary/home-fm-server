@@ -1,6 +1,6 @@
 use super::song::{download_song, Song};
 use crate::db::DBExecutor;
-use crate::song::NewSong;
+use crate::song::{NewSong, SongRequest};
 use actix::*;
 
 pub struct MyIO {
@@ -9,7 +9,7 @@ pub struct MyIO {
 
 #[derive(Debug)]
 pub enum IOJob {
-    DownloadSong { song_name: String },
+    DownloadSong { requested_song: SongRequest },
 }
 
 impl Message for IOJob {
@@ -25,9 +25,9 @@ impl Handler<IOJob> for MyIO {
 
     fn handle(&mut self, msg: IOJob, ctx: &mut Self::Context) -> Self::Result {
         match msg {
-            IOJob::DownloadSong { song_name } => {
+            IOJob::DownloadSong { requested_song } => {
                 // Result containing NewSong with all informations of it we need or empty error for now
-                download_song(&song_name)
+                download_song(&requested_song)
             }
         }
     }

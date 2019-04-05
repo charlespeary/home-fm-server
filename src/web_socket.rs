@@ -50,6 +50,7 @@ impl MyWebSocket {
         // serialize message to string in order to be able to send it
         match serde_json::to_string(msg) {
             Ok(message) => {
+                println!("Websocket message - {}", message);
                 ctx.text(&message);
             }
             Err(e) => {
@@ -95,17 +96,23 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                 let request: Request = serde_json::from_str(&text).unwrap();
                 match request.action.as_str() {
                     "request_song" => {
-                        let song: Payload<SongRequest> = serde_json::from_str(&text).unwrap();
-                        ctx.state().queue_handler.do_send(QueueJob::DownloadSong {
-                            requested_song: song.payload,
-                        });
-
-                        let response = UserMessage::<EmptyValue> {
-                            success: true,
-                            action: "start_song_download".to_owned(),
-                            value: EmptyValue {},
+                        let song = serde_json::from_str::<Payload<SongRequest>>(&text);
+                        let response = if let Ok(song) = song {
+                            ctx.state().queue_handler.do_send(QueueJob::DownloadSong {
+                                requested_song: song.payload,
+                            });
+                            UserMessage::<EmptyValue> {
+                                success: true,
+                                action: "start_song_download".to_owned(),
+                                value: EmptyValue {},
+                            }
+                        } else {
+                            UserMessage::<EmptyValue> {
+                                success: true,
+                                action: "incomplete_data".to_owned(),
+                                value: EmptyValue {},
+                            }
                         };
-
                         self.send_message(ctx, &response);
                     }
                     _ => {

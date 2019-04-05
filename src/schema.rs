@@ -4,5 +4,7 @@ table! {
         name -> Text,
         path -> Text,
         duration -> Integer,
+        thumbnail_url -> Text,
+        artists -> Text,
     }
 }

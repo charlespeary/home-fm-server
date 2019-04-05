@@ -63,10 +63,15 @@ impl Handler<QueueJob> for SongQueue {
     }
 }
 
+//#[derive(Serialize, Clone)]
+//pub struct NextSong {
+//    pub next_song: Song,
+//    pub songs_queue: Vec<ScheduledSong>,
+//}
+
 #[derive(Serialize, Clone)]
 pub struct NextSong {
     pub next_song: Song,
-    pub songs_queue: Vec<ScheduledSong>,
 }
 
 impl SongQueue {
@@ -85,10 +90,7 @@ impl SongQueue {
                 let response = UserMessage::<NextSong> {
                     success: true,
                     action: "next_song".to_owned(),
-                    value: NextSong {
-                        next_song: song,
-                        songs_queue: self.songs_queue.clone(),
-                    },
+                    value: NextSong { next_song: song },
                 };
                 ClientPublisher::from_registry().do_send(response);
             }
@@ -114,6 +116,7 @@ impl SongQueue {
 
     fn next_song(&mut self, ctx: &mut ActorContext) {
         if let Some(scheduled_song) = self.songs_queue.first() {
+            println!("NEXT SONGS -  {:#?}", self.songs_queue);
             self.handle_activities(
                 ctx,
                 QueueJob::PlaySong {
@@ -125,7 +128,7 @@ impl SongQueue {
             //  println!("just playing some random stuff");
             let future = wrap_future::<_, Self>(self.db.send(GetRandomSong {}));
             ctx.spawn(
-                future //
+                future
                     .map(move |res, actor, ctx| {
                         if let Ok(song) = res {
                             actor.handle_activities(ctx, QueueJob::PlaySong { song });
@@ -169,22 +172,21 @@ impl SongQueue {
         ctx: &mut ActorContext,
         requested_song: SongRequest,
     ) -> impl ActorFuture<Item = Song, Error = MailboxError, Actor = SongQueue> {
-        wrap_future::<_, Self>(self.IO.send(DownloadSong {
-            song_name: requested_song.get_name(),
-        }))
-        .and_then(|song, actor, ctx| {
-            wrap_future(actor.db.send(SaveSong {
-                song: song.unwrap(),
-            }))
-        })
-        .and_then(|song, actor, ctx| (fut_ok(song.unwrap()).into_actor(actor)))
+        wrap_future::<_, Self>(self.IO.send(DownloadSong { requested_song }))
+            .and_then(|song, actor, ctx| {
+                wrap_future(actor.db.send(SaveSong {
+                    song: song.unwrap(),
+                }))
+            })
+            .and_then(|song, actor, ctx| (fut_ok(song.unwrap()).into_actor(actor)))
     }
 
     fn download_song(&mut self, ctx: &mut ActorContext, requested_song: SongRequest) {
         let requested_at = requested_song.requested_at.clone();
         ctx.spawn(
             wrap_future::<_, Self>(self.db.send(CheckSongExistence {
-                song_name: requested_song.get_name(),
+                song_name: requested_song.name.clone(),
+                artists: requested_song.artists.clone(),
             }))
             .map(|song, actor, ctx| {
                 if let Ok(song) = song {
@@ -216,7 +218,7 @@ pub struct BroadcastState;
 #[derive(Serialize, Clone)]
 pub struct QueueState {
     pub active_song: Option<Song>,
-    pub songs_queue: Vec<ScheduledSong>,
+    pub songs_queue: Vec<Song>,
 }
 
 // broadcast queue state after receiving message from websocket that there's new connection
@@ -228,7 +230,11 @@ impl Handler<BroadcastState> for SongQueue {
             action: "queue_state".to_owned(),
             value: QueueState {
                 active_song: self.active_song.clone(),
-                songs_queue: self.songs_queue.clone(),
+                songs_queue: self
+                    .songs_queue
+                    .iter()
+                    .map(|scheduled_song| scheduled_song.song.clone())
+                    .collect(),
             },
         };
         ClientPublisher::from_registry().do_send(response);
