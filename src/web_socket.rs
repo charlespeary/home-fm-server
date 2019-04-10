@@ -50,7 +50,6 @@ impl MyWebSocket {
         // serialize message to string in order to be able to send it
         match serde_json::to_string(msg) {
             Ok(message) => {
-                println!("Websocket message - {}", message);
                 ctx.text(&message);
             }
             Err(e) => {

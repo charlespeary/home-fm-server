@@ -31,7 +31,7 @@ pub struct Song {
     id: i32,
     pub name: String,
     #[serde(skip_serializing)]
-    path: String,
+    pub path: String,
     pub duration: i32,
     thumbnail_url: String,
     artists: String,
@@ -51,8 +51,8 @@ pub struct NewSong {
 pub struct GetRandomSong;
 
 pub fn get_song_path(song_name: &str) -> String {
-    let static_path = PathBuf::from("static/songs");
-    format!("{}/{}.mp3", static_path.display(), song_name)
+    let canonicalized_path = std::fs::canonicalize(PathBuf::from("static/songs")).unwrap();
+    format!("{}/{}.mp3", canonicalized_path.display(), song_name)
 }
 
 fn get_json_path(song_path: &str) -> String {

@@ -31,7 +31,7 @@ impl System {
         let second_db_addr = db.clone();
         // how can I simplify this, so I won't run into borrowing problems after db move into the closure?
         let io = SyncArbiter::start(num_cpus::get(), move || MyIO { db: db.clone() });
-        let radio = Arbiter::start(|ctx| Radio {});
+        let radio = Arbiter::start(|ctx| Radio::new());
         let queue_handler = SongQueue {
             IO: io.clone(),
             db: second_db_addr.clone(),

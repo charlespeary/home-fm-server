@@ -116,7 +116,6 @@ impl SongQueue {
 
     fn next_song(&mut self, ctx: &mut ActorContext) {
         if let Some(scheduled_song) = self.songs_queue.first() {
-            println!("NEXT SONGS -  {:#?}", self.songs_queue);
             self.handle_activities(
                 ctx,
                 QueueJob::PlaySong {
