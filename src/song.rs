@@ -69,7 +69,7 @@ pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
         // extract audio from the video and format it to mp3
         .arg("-x")
         .arg("--audio-format")
-        .arg("mp3")
+        .arg("wav")
         // save file in /static/songs directory
         .arg(format!("-o{}", song_path))
         .arg("--write-info-json")

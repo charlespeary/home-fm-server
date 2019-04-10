@@ -18,10 +18,9 @@ impl Radio {
     }
 
     fn play_song(&self, song_path: &str) {
-        let timeout = time::Duration::from_secs(10);
-        thread::sleep(timeout);
-        let handle = Command::new("python")
-            .arg(self.script_path.clone())
+        // let timeout = time::Duration::from_secs(10);
+        // thread::sleep(timeout);
+        Command::new(self.script_path.clone())
             .arg("-f")
             .arg("104.1")
             .arg(song_path)
@@ -59,7 +58,7 @@ impl Handler<PlaySong> for Radio {
 }
 
 pub fn get_script_path() -> Result<String, ()> {
-    let path = Path::new("../fm_transmitter/PiStation.py");
+    let path = Path::new("../fm_transmitter/fm_transmitter");
     let script_exists = path.exists();
     if script_exists {
         Ok(std::fs::canonicalize(&path)
