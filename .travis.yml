@@ -1,0 +1,12 @@
+language: rust
+rust:
+  - nightly
+services:
+  - sqlite
+before_script:
+  - cargo install diesel_cli --no-default-features --features=postgres
+  - diesel setup
+  - diesel migration run
+script:
+  - cargo build --verbose --all
+  - cargo test --verbose --all
