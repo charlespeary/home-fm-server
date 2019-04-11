@@ -17,15 +17,16 @@ impl Radio {
         Radio { script_path }
     }
 
-    fn play_song(&self, song_path: &str) {
-        // let timeout = time::Duration::from_secs(10);
+    fn play_song(&self, song_path: &str, song_duration: i32) {
+        // println!("sleeping");
+        // let timeout = time::Duration::from_secs(30);
         // thread::sleep(timeout);
-        Command::new(self.script_path.clone())
-            .arg("-f")
-            .arg("104.1")
+        Command::new("timeout")
+            .arg(song_duration.to_string())
+            .arg("./play_song.sh")
             .arg(song_path)
-            .output()
-            .unwrap();
+            .arg(self.script_path.clone())
+            .output();
     }
 }
 
@@ -52,7 +53,7 @@ impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
         // let timeout = time::Duration::from_secs(msg.song.duration as u64);
-        self.play_song(&msg.song.path);
+        self.play_song(&msg.song.path, msg.song.duration);
         msg.queue_addr.do_send(NextSong {});
     }
 }

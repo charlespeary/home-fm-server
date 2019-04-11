@@ -1,0 +1,1 @@
+sudo $1 --freq 104.1 --audio $2

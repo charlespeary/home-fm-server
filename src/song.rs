@@ -52,7 +52,7 @@ pub struct GetRandomSong;
 
 pub fn get_song_path(song_name: &str) -> String {
     let canonicalized_path = std::fs::canonicalize(PathBuf::from("static/songs")).unwrap();
-    format!("{}/{}.mp3", canonicalized_path.display(), song_name)
+    format!("{}/{}.wav", canonicalized_path.display(), song_name)
 }
 
 fn get_json_path(song_path: &str) -> String {
