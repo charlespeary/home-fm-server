@@ -50,11 +50,11 @@ impl System {
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
         })
-        .bind("127.0.0.1:8080")
+        .bind("127.0.0.1:8000")
         .unwrap()
         .start();;
 
-        println!("Started http server: 127.0.0.1:8080");
+        println!("Started http server: 127.0.0.1:8000");
         sys.run();
         System {}
     }

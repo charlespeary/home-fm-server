@@ -62,16 +62,22 @@ fn get_json_path(song_path: &str) -> String {
 // returns boolean - whether song was downloaded or not
 pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
     let song_path = get_song_path(&requested_song.get_formatted_name());
-    let search_query: &str = &format!("ytsearch1:{}", &requested_song.name);
+    let search_query: &str = &format!("ytsearch1:{}", &requested_song.get_formatted_name());
+    println!("{}", search_query);
     let output = Command::new("youtube-dl")
         // download one song from youtube
+        .current_dir("./static/songs")
         .arg(search_query)
         // extract audio from the video and format it to mp3
         .arg("-x")
         .arg("--audio-format")
         .arg("wav")
-        // save file in /static/songs directory
-        .arg(format!("-o{}", song_path))
+        .arg("--output")
+        // why not just use song_path? without %(ext)s weird things happen inside youtube-dl and it outputs not working on rpi working file
+        .arg(format!(
+            "{}.%(ext)s",
+            &requested_song.get_formatted_name().clone()
+        ))
         .arg("--write-info-json")
         .output();
     if output.is_ok() {

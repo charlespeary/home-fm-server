@@ -18,15 +18,22 @@ impl Radio {
     }
 
     fn play_song(&self, song_path: &str, song_duration: i32) {
-        // println!("sleeping");
-        // let timeout = time::Duration::from_secs(30);
-        // thread::sleep(timeout);
-        Command::new("timeout")
-            .arg(song_duration.to_string())
-            .arg("./play_song.sh")
-            .arg(song_path)
+        println!("sleeping");
+        let timeout = time::Duration::from_secs(5);
+        thread::sleep(timeout);
+        println!("done sleeping");
+        println!("{:#?}", song_path);
+        let handle = Command::new("timeout")
+            .arg(&song_duration.to_string())
             .arg(self.script_path.clone())
-            .output();
+            .arg("--freq")
+            .arg("104.1")
+            .arg("--audio")
+            .arg(song_path)
+            .output()
+            .unwrap();
+        //   println!("{:#?}", String::from_utf8(handle.stderr.clone()));
+        //   println!("{:#?}", String::from_utf8(handle.stdout.clone()));
     }
 }
 
