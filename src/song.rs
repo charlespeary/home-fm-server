@@ -52,7 +52,7 @@ pub struct GetRandomSong;
 
 pub fn get_song_path(song_name: &str) -> String {
     let canonicalized_path = std::fs::canonicalize(PathBuf::from("static/songs")).unwrap();
-    format!("{}/{}.wav", canonicalized_path.display(), song_name)
+    format!("{}/{}", canonicalized_path.display(), song_name)
 }
 
 fn get_json_path(song_path: &str) -> String {
@@ -63,7 +63,7 @@ fn get_json_path(song_path: &str) -> String {
 pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
     let song_path = get_song_path(&requested_song.get_formatted_name());
     let search_query: &str = &format!("ytsearch1:{}", &requested_song.get_formatted_name());
-    println!("{}", search_query);
+    println!("{}, {}", song_path, &requested_song.get_formatted_name());
     let output = Command::new("youtube-dl")
         // download one song from youtube
         .current_dir("./static/songs")
@@ -87,7 +87,7 @@ pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
             name: requested_song.name.clone(),
             artists: requested_song.artists.clone(),
             thumbnail_url: requested_song.thumbnail_url.clone(),
-            path: song_path,
+            path: format!("{}.wav", song_path),
         })
     } else {
         println!(
