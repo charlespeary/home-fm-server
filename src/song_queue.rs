@@ -1,5 +1,5 @@
 use super::io::MyIO;
-use super::radio::Radio;
+use super::radio::{Radio, SkipSong};
 use super::song::Song;
 use crate::client_publisher::ClientPublisher;
 use crate::db::{CheckSongExistence, DBExecutor, SaveSong};
@@ -7,9 +7,8 @@ use crate::io::IOJob::DownloadSong;
 use crate::radio;
 use crate::song::{GetRandomSong, SongRequest};
 use crate::web_socket::{EmptyValue, UserMessage};
-use actix::fut::{wrap_future, FutureWrap, IntoActorFuture};
+use actix::fut::wrap_future;
 use actix::*;
-use actix_web::{dev::Handler as RouteHandler, App, HttpRequest, HttpResponse};
 use chrono::prelude::*;
 use chrono::Utc;
 use futures::future::{ok as fut_ok, Future};
@@ -54,6 +53,7 @@ pub enum QueueJob {
     DownloadSong {
         requested_song: SongRequest,
     },
+    SkipSong,
 }
 
 impl Handler<QueueJob> for SongQueue {
@@ -62,12 +62,6 @@ impl Handler<QueueJob> for SongQueue {
         self.handle_activities(ctx, msg);
     }
 }
-
-//#[derive(Serialize, Clone)]
-//pub struct NextSong {
-//    pub next_song: Song,
-//    pub songs_queue: Vec<ScheduledSong>,
-//}
 
 #[derive(Serialize, Clone)]
 pub struct NextSong {
@@ -104,6 +98,11 @@ impl SongQueue {
                 }
                 // sort songs by time they were requested at
                 self.sort_songs();
+            }
+            QueueJob::SkipSong => {
+                self.radio.do_send(SkipSong {
+                    queue_addr: ctx.address(),
+                });
             }
         }
     }

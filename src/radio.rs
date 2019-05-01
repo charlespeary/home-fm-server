@@ -1,39 +1,27 @@
 use crate::song::Song;
 use crate::song_queue::SongQueue;
+use actix::fut::wrap_future;
+use actix::SpawnHandle;
 use actix::*;
+use futures::Future;
 use std::path::Path;
 use std::process::Command;
-use std::{thread, time};
-
+use tokio_process::CommandExt;
 #[derive(Default)]
 pub struct Radio {
     script_path: String,
+    // handle to process playing song
+    command_handle: Option<SpawnHandle>,
 }
 
 impl Radio {
     pub fn new() -> Self {
         // panic if script isn't avialable
         let script_path = get_script_path().unwrap();
-        Radio { script_path }
-    }
-    fn play_song(&self, song_path: &str, song_duration: i32) {
-        println!("sleeping");
-        let timeout = time::Duration::from_secs(5);
-        thread::sleep(timeout);
-        println!("done sleeping");
-        println!("{:#?}", song_path);
-        let handle = Command::new("timeout")
-            .arg(&song_duration.to_string())
-            .arg("sudo")
-            .arg(self.script_path.clone())
-            .arg("--freq")
-            .arg("104.1")
-            .arg("--audio")
-            .arg(song_path)
-            .output()
-            .unwrap();
-        //   println!("{:#?}", String::from_utf8(handle.stderr.clone()));
-        //   println!("{:#?}", String::from_utf8(handle.stdout.clone()));
+        Radio {
+            script_path,
+            command_handle: None,
+        }
     }
 }
 
@@ -44,6 +32,14 @@ pub struct PlaySong {
 
 pub struct NextSong;
 impl Message for NextSong {
+    type Result = ();
+}
+
+pub struct SkipSong {
+    pub queue_addr: Addr<SongQueue>,
+}
+
+impl Message for SkipSong {
     type Result = ();
 }
 
@@ -59,8 +55,30 @@ impl Actor for Radio {
 impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
-        // let timeout = time::Duration::from_secs(msg.song.duration as u64);
-        self.play_song(&msg.song.path, msg.song.duration);
+        let handle = Command::new("timeout")
+            .arg(&msg.song.duration.to_string())
+            .arg("sudo")
+            .arg(self.script_path.clone())
+            .arg("--freq")
+            .arg("104.1")
+            .arg("--audio")
+            .arg(&msg.song.path)
+            .spawn_async();
+
+        let future = handle
+            .expect("failed to spawn")
+            .map(move |_| {
+                msg.queue_addr.do_send(NextSong {});
+            })
+            .map_err(|e| panic!("failed to wait for exit: {}", e));
+        self.command_handle = Some(ctx.spawn(wrap_future::<_, Self>(future)));
+    }
+}
+
+impl Handler<SkipSong> for Radio {
+    type Result = ();
+    fn handle(&mut self, msg: SkipSong, ctx: &mut Self::Context) -> Self::Result {
+        ctx.cancel_future(self.command_handle.unwrap());
         msg.queue_addr.do_send(NextSong {});
     }
 }

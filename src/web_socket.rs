@@ -143,6 +143,9 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                         };
                         self.send_message(ctx, &response);
                     }
+                    "skip" => {
+                        ctx.state().queue_handler.do_send(QueueJob::SkipSong {});
+                    }
                     _ => {
                         // Unkown action, let's notify user about that
                         let response = UserMessage::<EmptyValue> {
