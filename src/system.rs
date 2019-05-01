@@ -30,8 +30,8 @@ impl System {
         let db = DBExecutor::new(database_poll.clone()).start();
         let second_db_addr = db.clone();
         // how can I simplify this, so I won't run into borrowing problems after db move into the closure?
-        let io = SyncArbiter::start(num_cpus::get(), move || MyIO { db: db.clone() });
         let radio = Arbiter::start(|ctx| Radio::new());
+        let io = SyncArbiter::start(1, move || MyIO { db: db.clone() });
         let queue_handler = SongQueue {
             IO: io.clone(),
             db: second_db_addr.clone(),
@@ -50,11 +50,11 @@ impl System {
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
         })
-        .bind("127.0.0.1:8000")
+        .bind("127.0.0.1:8080")
         .unwrap()
         .start();;
 
-        println!("Started http server: 127.0.0.1:8000");
+        println!("Started http server: 127.0.0.1:8080");
         sys.run();
         System {}
     }

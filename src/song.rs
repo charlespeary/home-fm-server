@@ -14,6 +14,7 @@ pub struct SongRequest {
     #[serde(skip_deserializing, default = "now")]
     pub requested_at: DateTime<Utc>,
     thumbnail_url: String,
+    pub nsfw: bool,
 }
 
 fn now() -> DateTime<Utc> {
@@ -35,6 +36,7 @@ pub struct Song {
     pub duration: i32,
     thumbnail_url: String,
     artists: String,
+    nsfw: bool,
 }
 
 #[derive(Insertable, Clone, Debug)]
@@ -46,6 +48,7 @@ pub struct NewSong {
     thumbnail_url: String,
     // , separated array
     pub artists: String,
+    nsfw: bool,
 }
 
 pub struct GetRandomSong;
@@ -88,6 +91,7 @@ pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
             artists: requested_song.artists.clone(),
             thumbnail_url: requested_song.thumbnail_url.clone(),
             path: format!("{}.wav", song_path),
+            nsfw: requested_song.nsfw,
         })
     } else {
         println!(

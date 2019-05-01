@@ -6,5 +6,6 @@ table! {
         duration -> Integer,
         thumbnail_url -> Text,
         artists -> Text,
+        nsfw -> Bool,
     }
 }

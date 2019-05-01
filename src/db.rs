@@ -84,8 +84,14 @@ impl Handler<SaveSong> for DBExecutor {
 // in case of problems during save return random song to user via Err()
 
 fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
+    use super::schema::songs::dsl::nsfw;
+
     no_arg_sql_function!(RANDOM, (), "Represents the sql RANDOM() function");
-    songs::table.order(RANDOM).limit(1).first::<Song>(conn)
+    songs::table
+        .filter(nsfw.eq(false))
+        .order(RANDOM)
+        .limit(1)
+        .first::<Song>(conn)
 }
 
 fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {

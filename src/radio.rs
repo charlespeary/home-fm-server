@@ -16,7 +16,6 @@ impl Radio {
         let script_path = get_script_path().unwrap();
         Radio { script_path }
     }
-
     fn play_song(&self, song_path: &str, song_duration: i32) {
         println!("sleeping");
         let timeout = time::Duration::from_secs(5);
@@ -25,6 +24,7 @@ impl Radio {
         println!("{:#?}", song_path);
         let handle = Command::new("timeout")
             .arg(&song_duration.to_string())
+            .arg("sudo")
             .arg(self.script_path.clone())
             .arg("--freq")
             .arg("104.1")

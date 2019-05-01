@@ -5,5 +5,6 @@ CREATE TABLE songs (
                      path VARCHAR NOT NULL,
                      duration INTEGER NOT NULL,
                      thumbnail_url VARCHAR NOT NULL,
-                     artists VARCHAR NOT NULL
+                     artists VARCHAR NOT NULL,
+                     nsfw INTEGER NOT NULL DEFAULT 1
 )
