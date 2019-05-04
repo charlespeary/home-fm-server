@@ -122,6 +122,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
             }
             ws::Message::Text(text) => {
                 let request: Request = serde_json::from_str(&text).unwrap();
+                println!("{}", &text);
                 match request.action.as_str() {
                     "request_song" => {
                         let song = serde_json::from_str::<Payload<SongRequest>>(&text);
@@ -143,7 +144,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                         };
                         self.send_message(ctx, &response);
                     }
-                    "skip" => {
+                    "skip_song" => {
                         ctx.state().queue_handler.do_send(QueueJob::SkipSong {});
                     }
                     _ => {

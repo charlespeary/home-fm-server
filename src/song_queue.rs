@@ -180,7 +180,7 @@ impl SongQueue {
     }
 
     fn download_song(&mut self, ctx: &mut ActorContext, requested_song: SongRequest) {
-        let requested_at = requested_song.requested_at.clone();
+        let requested_at = requested_song.requested_at;
         ctx.spawn(
             wrap_future::<_, Self>(self.db.send(CheckSongExistence {
                 song_name: requested_song.name.clone(),

@@ -77,7 +77,24 @@ impl Handler<SaveSong> for DBExecutor {
     type Result = Result<Song, DieselError>;
 
     fn handle(&mut self, msg: SaveSong, ctx: &mut Self::Context) -> Self::Result {
-        save_song(&self.get_conn(), &msg.song)
+        save_song(&self.get_conn(), &msg.song).map_err(|e| {
+            println!("{:#?}", e);
+            e
+        })
+    }
+}
+
+pub struct GetAllSongs;
+
+impl Message for GetAllSongs {
+    type Result = Result<Vec<Song>, DieselError>;
+}
+
+impl Handler<GetAllSongs> for DBExecutor {
+    type Result = Result<Vec<Song>, DieselError>;
+
+    fn handle(&mut self, msg: GetAllSongs, ctx: &mut Self::Context) -> Self::Result {
+        get_all_songs(&self.get_conn())
     }
 }
 
@@ -108,4 +125,8 @@ fn get_song(
     songs::table
         .filter(name.eq(song_name).and(artists.eq(song_artists)))
         .first::<Song>(conn)
+}
+
+fn get_all_songs(conn: &PooledConn) -> Result<Vec<Song>, DieselError> {
+    songs::table.load::<Song>(conn)
 }

@@ -1,12 +1,15 @@
+use super::db::GetAllSongs;
 use super::schema::songs;
+use super::system::AppState;
+use actix_web::{AsyncResponder, Error as AWError, FutureResponse, HttpResponse, State};
 use chrono::prelude::*;
 use diesel::{Insertable, Queryable};
-use serde::{self, Deserialize, Serialize, Serializer};
+use futures::future::Future;
+use serde::{self, Deserialize, Serialize};
 use std::fs;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::Command;
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SongRequest {
     pub artists: String,
@@ -118,9 +121,20 @@ fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
             fs::remove_file(json_path);
             Ok(json_content)
         }
-        _ => {
-            println!("error during opening a file");
+        e => {
+            eprintln!("error during opening a file - {:#?}", e);
             Err(())
         }
     }
+}
+
+// API functions
+
+pub fn get_all_songs(state: State<AppState>) -> FutureResponse<HttpResponse> {
+    state
+        .db
+        .send(GetAllSongs {})
+        .and_then(|res| Ok(HttpResponse::Ok().json(res.unwrap())))
+        .from_err()
+        .responder()
 }

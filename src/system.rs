@@ -1,18 +1,19 @@
 use super::io::MyIO;
 use super::radio::Radio;
+use super::song::get_all_songs;
 use super::song_queue::SongQueue;
 use super::web_socket::ws_index;
 use crate::db::{new_pool, DBExecutor};
 use actix::prelude::*;
 use actix::sync::SyncArbiter;
-use actix_web::{middleware, server, App};
+use actix_web::{http, middleware, server, App};
 use dotenv::dotenv;
-use listenfd::ListenFd;
 use std::env;
 
 #[derive(Clone)]
 pub struct AppState {
     pub queue_handler: Addr<SongQueue>,
+    pub db: Addr<DBExecutor>,
 }
 
 pub struct System {}
@@ -41,12 +42,18 @@ impl System {
         }
         .start();
 
-        let app_state = AppState { queue_handler };
+        let app_state = AppState {
+            queue_handler,
+            db: second_db_addr.clone(),
+        };
 
         server::new(move || {
-            App::with_state(app_state.clone()) // <- create app with shared state
+            App::with_state(app_state.clone())
                 // add our resources (routes)
                 .resource("/ws/", |r| r.route().f(ws_index))
+                .resource("/songs", |r| {
+                    r.method(http::Method::GET).with(get_all_songs)
+                })
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
         })
