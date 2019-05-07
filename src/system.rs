@@ -6,7 +6,7 @@ use super::web_socket::ws_index;
 use crate::db::{new_pool, DBExecutor};
 use actix::prelude::*;
 use actix::sync::SyncArbiter;
-use actix_web::{http, middleware, server, App};
+use actix_web::{http, middleware, middleware::cors::Cors, server, App};
 use dotenv::dotenv;
 use std::env;
 
@@ -56,6 +56,7 @@ impl System {
                 })
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
+                .middleware(Cors::build().finish())
         })
         .bind("127.0.0.1:8080")
         .unwrap()
