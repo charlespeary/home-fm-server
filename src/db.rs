@@ -104,11 +104,11 @@ pub struct ToggleSongNsfw {
 }
 
 impl Message for ToggleSongNsfw {
-    type Result = ();
+    type Result = Result<Song, DieselError>;
 }
 
 impl Handler<ToggleSongNsfw> for DBExecutor {
-    type Result = ();
+    type Result = Result<Song, DieselError>;
 
     fn handle(&mut self, msg: ToggleSongNsfw, ctx: &mut Self::Context) -> Self::Result {
         toggle_song_nsfw(&self.get_conn(), msg.id, msg.is_nsfw)
@@ -147,9 +147,13 @@ fn get_all_songs(conn: &PooledConn) -> Result<Vec<Song>, DieselError> {
     songs::table.load::<Song>(conn)
 }
 
-fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) {
+fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::{id, nsfw};
     diesel::update(songs::table.filter(id.eq(1)))
         .set(nsfw.eq(is_nsfw))
         .execute(conn);
+    songs::table
+        .filter(id.eq(song_id))
+        .limit(1)
+        .first::<Song>(conn)
 }

@@ -153,11 +153,7 @@ pub fn toggle_song_nsfw(
             id: path.0,
             is_nsfw: path.1,
         })
-        .and_then(|res| {
-            Ok(HttpResponse::Ok().json(json!({
-                "success":"true"
-            })))
-        })
+        .and_then(|song| Ok(HttpResponse::Ok().json(song.unwrap())))
         .from_err()
         .responder()
 }
