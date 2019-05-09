@@ -98,6 +98,22 @@ impl Handler<GetAllSongs> for DBExecutor {
     }
 }
 
+pub struct ToggleSongNsfw {
+    pub id: i32,
+    pub is_nsfw: bool,
+}
+
+impl Message for ToggleSongNsfw {
+    type Result = ();
+}
+
+impl Handler<ToggleSongNsfw> for DBExecutor {
+    type Result = ();
+
+    fn handle(&mut self, msg: ToggleSongNsfw, ctx: &mut Self::Context) -> Self::Result {
+        toggle_song_nsfw(&self.get_conn(), msg.id, msg.is_nsfw)
+    }
+}
 // in case of problems during save return random song to user via Err()
 
 fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
@@ -129,4 +145,11 @@ fn get_song(
 
 fn get_all_songs(conn: &PooledConn) -> Result<Vec<Song>, DieselError> {
     songs::table.load::<Song>(conn)
+}
+
+fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) {
+    use super::schema::songs::dsl::{id, nsfw};
+    diesel::update(songs::table.filter(id.eq(1)))
+        .set(nsfw.eq(is_nsfw))
+        .execute(conn);
 }

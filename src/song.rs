@@ -1,15 +1,17 @@
-use super::db::GetAllSongs;
+use super::db::{GetAllSongs, ToggleSongNsfw};
 use super::schema::songs;
 use super::system::AppState;
-use actix_web::{AsyncResponder, Error as AWError, FutureResponse, HttpResponse, State};
+use actix_web::{AsyncResponder, Error as AWError, FutureResponse, HttpResponse, Path, State};
 use chrono::prelude::*;
 use diesel::{Insertable, Queryable};
 use futures::future::Future;
 use serde::{self, Deserialize, Serialize};
+use serde_json::json;
 use std::fs;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::Command;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SongRequest {
     pub artists: String,
@@ -109,6 +111,7 @@ pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
 #[derive(Serialize, Deserialize)]
 struct Info {
     duration: i32,
+    thumbnail: String,
 }
 
 fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
@@ -129,12 +132,32 @@ fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
 }
 
 // API functions
-
+// /songs
 pub fn get_all_songs(state: State<AppState>) -> FutureResponse<HttpResponse> {
     state
         .db
         .send(GetAllSongs {})
         .and_then(|res| Ok(HttpResponse::Ok().json(res.unwrap())))
+        .from_err()
+        .responder()
+}
+
+// /songs/toggle_nsfw/{song_id}/{is_nsfw}
+pub fn toggle_song_nsfw(
+    path: Path<(i32, bool)>,
+    state: State<AppState>,
+) -> FutureResponse<HttpResponse> {
+    state
+        .db
+        .send(ToggleSongNsfw {
+            id: path.0,
+            is_nsfw: path.1,
+        })
+        .and_then(|res| {
+            Ok(HttpResponse::Ok().json(json!({
+                "success":"true"
+            })))
+        })
         .from_err()
         .responder()
 }
