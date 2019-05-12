@@ -7,6 +7,7 @@ use actix_web::*;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+use uuid::Uuid;
 
 /// do websocket handshake and start `MyWebSocket` actor
 pub fn ws_index(r: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
@@ -109,6 +110,11 @@ impl<T> Message for UserMessage<T> {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct EmptyValue {}
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DeleteSongFromQueue {
+    uuid: Uuid,
+}
+
 /// Handler for ws::Message message
 impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
@@ -122,7 +128,6 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
             }
             ws::Message::Text(text) => {
                 let request: Request = serde_json::from_str(&text).unwrap();
-                println!("{}", &text);
                 match request.action.as_str() {
                     "request_song" => {
                         let song = serde_json::from_str::<Payload<SongRequest>>(&text);
@@ -146,6 +151,24 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
                     }
                     "skip_song" => {
                         ctx.state().queue_handler.do_send(QueueJob::SkipSong {});
+                    }
+                    "delete_song_from_queue" => {
+                        let song_uuid = serde_json::from_str::<Payload<DeleteSongFromQueue>>(&text);
+                        if let Ok(song_uuid) = song_uuid {
+                            ctx.state()
+                                .queue_handler
+                                .do_send(QueueJob::DeleteSongFromQueue {
+                                    uuid: song_uuid.payload.uuid,
+                                });
+                        } else {
+                            // data is not complete, send error message
+                            let response = UserMessage::<EmptyValue> {
+                                success: true,
+                                action: "incomplete_data".to_owned(),
+                                value: EmptyValue {},
+                            };
+                            self.send_message(ctx, &response);
+                        }
                     }
                     _ => {
                         // Unkown action, let's notify user about that

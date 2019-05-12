@@ -13,13 +13,19 @@ use chrono::prelude::*;
 use chrono::Utc;
 use futures::future::{ok as fut_ok, Future};
 use serde::Serialize;
+use uuid::Uuid;
 
 type ActorContext = Context<SongQueue>;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct ScheduledSong {
     song: Song,
+    // this field determines when websocket got request from client
+    // because IO might download songs at different times, I want to keep track when it was requested
+    // to sort songs in queue in order requested by user,
     requested_at: DateTime<Utc>,
+    // uuid used to identify songs in queue in order to delete them
+    uuid: Uuid,
 }
 
 pub struct SongQueue {
@@ -40,20 +46,11 @@ impl Actor for SongQueue {
 
 #[derive(Message, Debug)]
 pub enum QueueJob {
-    PlaySong {
-        song: Song,
-    },
-    ScheduleSong {
-        song: Song,
-        // this field determines when websocket got request from client
-        // because IO might download songs at different times, I want to keep track when it was requested
-        // to sort songs in queue in order requested by user,
-        requested_at: DateTime<Utc>,
-    },
-    DownloadSong {
-        requested_song: SongRequest,
-    },
+    PlaySong { song: Song },
+    ScheduleSong { scheduled_song: ScheduledSong },
+    DownloadSong { requested_song: SongRequest },
     SkipSong,
+    DeleteSongFromQueue { uuid: Uuid },
 }
 
 impl Handler<QueueJob> for SongQueue {
@@ -91,8 +88,8 @@ impl SongQueue {
             QueueJob::DownloadSong { requested_song } => {
                 self.download_song(ctx, requested_song);
             }
-            QueueJob::ScheduleSong { song, requested_at } => {
-                self.songs_queue.push(ScheduledSong { song, requested_at });
+            QueueJob::ScheduleSong { scheduled_song } => {
+                self.songs_queue.push(scheduled_song);
                 if self.active_song.is_none() {
                     self.next_song(ctx);
                 }
@@ -103,6 +100,18 @@ impl SongQueue {
                 self.radio.do_send(SkipSong {
                     queue_addr: ctx.address(),
                 });
+            }
+            QueueJob::DeleteSongFromQueue { uuid } => {
+                self.songs_queue.retain(|s| s.uuid != uuid);
+
+                // song is now deleted from queue, let's send its uuid, so e.g when there are
+                // few clients connected, they all will have updated queue
+                let response = UserMessage::<Uuid> {
+                    success: true,
+                    action: "delete_song_from_queue".to_owned(),
+                    value: uuid,
+                };
+                ClientPublisher::from_registry().do_send(response);
             }
         }
     }
@@ -150,17 +159,23 @@ impl SongQueue {
         song: &Song,
         requested_at: DateTime<Utc>,
     ) -> impl ActorFuture<Item = (), Error = MailboxError, Actor = SongQueue> {
+        // this is scheduled song's uuid
+        let scheduled_song = ScheduledSong {
+            song: song.clone(),
+            requested_at,
+            uuid: Uuid::new_v4(), // uuid to easily identify song e.g during deleting it from queue
+        };
         self.handle_activities(
             ctx,
             QueueJob::ScheduleSong {
-                song: song.clone(),
-                requested_at,
+                scheduled_song: scheduled_song.clone(),
             },
         );
-        let response = UserMessage::<Song> {
+
+        let response = UserMessage::<ScheduledSong> {
             success: true,
             action: "song_download_finished".to_owned(),
-            value: song.clone(),
+            value: scheduled_song,
         };
         wrap_future(ClientPublisher::from_registry().send(response))
     }
@@ -216,7 +231,7 @@ pub struct BroadcastState;
 #[derive(Serialize, Clone)]
 pub struct QueueState {
     pub active_song: Option<Song>,
-    pub songs_queue: Vec<Song>,
+    pub songs_queue: Vec<ScheduledSong>,
 }
 
 // broadcast queue state after receiving message from websocket that there's new connection
@@ -228,11 +243,7 @@ impl Handler<BroadcastState> for SongQueue {
             action: "queue_state".to_owned(),
             value: QueueState {
                 active_song: self.active_song.clone(),
-                songs_queue: self
-                    .songs_queue
-                    .iter()
-                    .map(|scheduled_song| scheduled_song.song.clone())
-                    .collect(),
+                songs_queue: self.songs_queue.clone(),
             },
         };
         ClientPublisher::from_registry().do_send(response);

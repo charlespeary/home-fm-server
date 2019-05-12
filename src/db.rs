@@ -149,7 +149,7 @@ fn get_all_songs(conn: &PooledConn) -> Result<Vec<Song>, DieselError> {
 
 fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::{id, nsfw};
-    diesel::update(songs::table.filter(id.eq(1)))
+    diesel::update(songs::table.filter(id.eq(song_id)))
         .set(nsfw.eq(is_nsfw))
         .execute(conn);
     songs::table
