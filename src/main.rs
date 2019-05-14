@@ -2,9 +2,11 @@
 #[macro_use]
 mod song;
 mod client_publisher;
+mod config;
 mod db;
 mod io;
 mod radio;
+mod responses;
 mod schema;
 mod song_queue;
 mod system;

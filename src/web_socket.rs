@@ -44,8 +44,6 @@ impl Actor for MyWebSocket {
     }
 }
 
-const FIVE_SECONDS: Duration = Duration::from_secs(5);
-
 impl MyWebSocket {
     pub fn new() -> Self {
         MyWebSocket { hb: Instant::now() }

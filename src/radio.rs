@@ -12,6 +12,7 @@ pub struct Radio {
     script_path: String,
     // handle to process playing song
     command_handle: Option<SpawnHandle>,
+    frequency: f32,
 }
 
 impl Radio {
@@ -21,6 +22,7 @@ impl Radio {
         Radio {
             script_path,
             command_handle: None,
+            frequency: 104.1,
         }
     }
 }
@@ -55,13 +57,12 @@ impl Actor for Radio {
 impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
-        println!("booom");
         let handle = Command::new("timeout")
             .arg(&msg.song.duration.to_string())
             .arg("sudo")
             .arg(self.script_path.clone())
             .arg("--freq")
-            .arg("104.1")
+            .arg(self.frequency.to_string())
             .arg("--audio")
             .arg(&msg.song.path)
             .spawn_async();
@@ -80,8 +81,23 @@ impl Handler<SkipSong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: SkipSong, ctx: &mut Self::Context) -> Self::Result {
         ctx.cancel_future(self.command_handle.unwrap());
-        println!("skipped song");
         msg.queue_addr.do_send(NextSong {});
+    }
+}
+
+pub struct SetFrequency {
+    pub frequency: f32,
+}
+
+impl Message for SetFrequency {
+    type Result = ();
+}
+
+impl Handler<SetFrequency> for Radio {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetFrequency, ctx: &mut Self::Context) -> Self::Result {
+        self.frequency = msg.frequency;
     }
 }
 

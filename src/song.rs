@@ -90,11 +90,17 @@ pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
         .output();
     if output.is_ok() {
         let info = get_song_info(&song_path, &requested_song.name).unwrap();
+        // if there is no thumbnail specified use the one provided by youtube-dl
+        let thumbnail_url = if requested_song.thumbnail_url == "none" {
+            info.thumbnail
+        } else {
+            requested_song.thumbnail_url.clone()
+        };
         Ok(NewSong {
             duration: info.duration,
             name: requested_song.name.clone(),
             artists: requested_song.artists.clone(),
-            thumbnail_url: requested_song.thumbnail_url.clone(),
+            thumbnail_url,
             path: format!("{}.wav", song_path),
             nsfw: requested_song.nsfw,
         })

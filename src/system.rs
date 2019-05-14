@@ -1,3 +1,4 @@
+use super::config::update_config;
 use super::io::MyIO;
 use super::radio::Radio;
 use super::song::{delete_song, get_all_songs, toggle_song_nsfw};
@@ -14,6 +15,7 @@ use std::env;
 pub struct AppState {
     pub queue_handler: Addr<SongQueue>,
     pub db: Addr<DBExecutor>,
+    pub radio: Addr<Radio>,
 }
 
 pub struct System {}
@@ -45,6 +47,7 @@ impl System {
         let app_state = AppState {
             queue_handler,
             db: second_db_addr.clone(),
+            radio,
         };
 
         server::new(move || {
@@ -59,6 +62,9 @@ impl System {
                 })
                 .resource("/songs/{id}/{is_nsfw}", |r| {
                     r.method(http::Method::PUT).with(toggle_song_nsfw)
+                })
+                .resource("/config", |r| {
+                    r.method(http::Method::PUT).with(update_config)
                 })
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
