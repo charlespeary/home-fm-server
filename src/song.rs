@@ -1,4 +1,4 @@
-use super::db::{GetAllSongs, ToggleSongNsfw};
+use super::db::{DeleteSong, GetAllSongs, ToggleSongNsfw};
 use super::schema::songs;
 use super::system::AppState;
 use actix_web::{AsyncResponder, Error as AWError, FutureResponse, HttpResponse, Path, State};
@@ -132,7 +132,7 @@ fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
 }
 
 // API functions
-// /songs
+/// GET /songs
 pub fn get_all_songs(state: State<AppState>) -> FutureResponse<HttpResponse> {
     state
         .db
@@ -142,7 +142,7 @@ pub fn get_all_songs(state: State<AppState>) -> FutureResponse<HttpResponse> {
         .responder()
 }
 
-// /songs/toggle_nsfw/{song_id}/{is_nsfw}
+/// PUT /songs/toggle_nsfw/{song_id}/{is_nsfw}
 pub fn toggle_song_nsfw(
     path: Path<(i32, bool)>,
     state: State<AppState>,
@@ -153,6 +153,21 @@ pub fn toggle_song_nsfw(
             id: path.0,
             is_nsfw: path.1,
         })
+        .and_then(|song| Ok(HttpResponse::Ok().json(song.unwrap())))
+        .from_err()
+        .responder()
+}
+
+#[derive(Deserialize)]
+pub struct SongId {
+    id: i32,
+}
+
+/// DELETE /songs/{song_id}
+pub fn delete_song(path: Path<SongId>, state: State<AppState>) -> FutureResponse<HttpResponse> {
+    state
+        .db
+        .send(DeleteSong { song_id: path.id })
         .and_then(|song| Ok(HttpResponse::Ok().json(song.unwrap())))
         .from_err()
         .responder()

@@ -1,6 +1,6 @@
 use super::io::MyIO;
 use super::radio::Radio;
-use super::song::{get_all_songs, toggle_song_nsfw};
+use super::song::{delete_song, get_all_songs, toggle_song_nsfw};
 use super::song_queue::SongQueue;
 use super::web_socket::ws_index;
 use crate::db::{new_pool, DBExecutor};
@@ -53,6 +53,9 @@ impl System {
                 .resource("/ws/", |r| r.route().f(ws_index))
                 .resource("/songs", |r| {
                     r.method(http::Method::GET).with(get_all_songs)
+                })
+                .resource("/songs/{id}", |r| {
+                    r.method(http::Method::DELETE).with(delete_song)
                 })
                 .resource("/songs/{id}/{is_nsfw}", |r| {
                     r.method(http::Method::PUT).with(toggle_song_nsfw)
