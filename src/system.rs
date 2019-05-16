@@ -7,9 +7,11 @@ use super::web_socket::ws_index;
 use crate::db::{new_pool, DBExecutor};
 use actix::prelude::*;
 use actix::sync::SyncArbiter;
-use actix_web::{http, middleware, middleware::cors::Cors, server, App};
+use actix_web::fs::{NamedFile, StaticFileConfig, StaticFiles};
+use actix_web::{http, middleware, middleware::cors::Cors, server, App, HttpRequest, Result};
 use dotenv::dotenv;
 use std::env;
+use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -18,7 +20,20 @@ pub struct AppState {
     pub radio: Addr<Radio>,
 }
 
-pub struct System {}
+pub struct System;
+
+fn serve_files(req: &HttpRequest<AppState>) -> Result<NamedFile> {
+    let mut file_path = PathBuf::new();
+    file_path.push("./static/client/");
+    let tail: PathBuf = req.match_info().query("tail").unwrap();
+    file_path.push(tail);
+    let file_handler = NamedFile::open(&file_path);
+    if !&file_path.is_dir() && file_handler.is_ok() {
+        Ok(file_handler.unwrap())
+    } else {
+        Ok(NamedFile::open("./static/client/index.html")?)
+    }
+}
 
 impl System {
     pub fn new() -> Self {
@@ -53,18 +68,24 @@ impl System {
         server::new(move || {
             App::with_state(app_state.clone())
                 // add our resources (routes)
-                .resource("/ws/", |r| r.route().f(ws_index))
-                .resource("/songs", |r| {
-                    r.method(http::Method::GET).with(get_all_songs)
+                .scope("/api", |scope| {
+                    scope
+                        .resource("/ws/", |r| r.route().f(ws_index))
+                        .resource("/songs", |r| {
+                            r.method(http::Method::GET).with(get_all_songs)
+                        })
+                        .resource("/songs/{id}", |r| {
+                            r.method(http::Method::DELETE).with(delete_song)
+                        })
+                        .resource("/songs/{id}/{is_nsfw}", |r| {
+                            r.method(http::Method::PUT).with(toggle_song_nsfw)
+                        })
+                        .resource("/config", |r| {
+                            r.method(http::Method::PUT).with(update_config)
+                        })
                 })
-                .resource("/songs/{id}", |r| {
-                    r.method(http::Method::DELETE).with(delete_song)
-                })
-                .resource("/songs/{id}/{is_nsfw}", |r| {
-                    r.method(http::Method::PUT).with(toggle_song_nsfw)
-                })
-                .resource("/config", |r| {
-                    r.method(http::Method::PUT).with(update_config)
+                .resource(r"/{tail:.*}", |r| {
+                    r.method(http::Method::GET).f(serve_files)
                 })
                 // add middleware to log stuff
                 .middleware(middleware::Logger::default())
