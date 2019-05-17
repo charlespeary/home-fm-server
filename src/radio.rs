@@ -13,6 +13,8 @@ pub struct Radio {
     // handle to process playing song
     command_handle: Option<SpawnHandle>,
     frequency: f32,
+    // is song played
+    playing: bool,
 }
 
 impl Radio {
@@ -23,6 +25,7 @@ impl Radio {
             script_path,
             command_handle: None,
             frequency: 104.1,
+            playing: false,
         }
     }
 }
@@ -57,6 +60,8 @@ impl Actor for Radio {
 impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
+        println!("{}", self.frequency.to_string());
+        self.playing = true;
         let handle = Command::new("timeout")
             .arg(&msg.song.duration.to_string())
             .arg("sudo")
@@ -80,8 +85,10 @@ impl Handler<PlaySong> for Radio {
 impl Handler<SkipSong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: SkipSong, ctx: &mut Self::Context) -> Self::Result {
-        ctx.cancel_future(self.command_handle.unwrap());
-        msg.queue_addr.do_send(NextSong {});
+        if let Some(command_handle) = self.command_handle {
+            ctx.cancel_future(command_handle);
+            msg.queue_addr.do_send(NextSong {});
+        }
     }
 }
 
