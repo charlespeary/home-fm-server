@@ -67,7 +67,8 @@ impl Handler<PlaySong> for Radio {
             .arg("sudo")
             .arg(self.script_path.clone())
             .arg("--freq")
-            .arg(self.frequency.to_string())
+            // replace . with , because that's what library wants
+            .arg(self.frequency.to_string().replace(".", ","))
             .arg("--audio")
             .arg(&msg.song.path)
             .spawn_async();
