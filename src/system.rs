@@ -22,6 +22,8 @@ pub struct AppState {
 
 pub struct System;
 
+/// Serves static files inside /static/client.
+/// If requested path doesn't match any file then home page is returned.
 fn serve_files(req: &HttpRequest<AppState>) -> Result<NamedFile> {
     let mut file_path = PathBuf::new();
     file_path.push("./static/client/");
@@ -47,7 +49,6 @@ impl System {
         let database_poll = new_pool(database_url).expect("Failed to create pool");
         let db = DBExecutor::new(database_poll.clone()).start();
         let second_db_addr = db.clone();
-        // how can I simplify this, so I won't run into borrowing problems after db move into the closure?
         let radio = Arbiter::start(|ctx| Radio::new());
         let io = SyncArbiter::start(1, move || MyIO { db: db.clone() });
         let queue_handler = SongQueue {

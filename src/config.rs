@@ -6,10 +6,12 @@ use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
+/// Configuration used mostly for radio commands.
 pub struct Config {
     pub frequency: f32,
 }
 
+/// PUT /config
 pub fn update_config(config: Json<Config>, state: State<AppState>) -> FutureResponse<HttpResponse> {
     state
         .radio

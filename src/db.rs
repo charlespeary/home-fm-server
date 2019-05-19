@@ -1,5 +1,5 @@
 use super::schema::songs;
-use crate::song::{GetRandomSong, NewSong, Song};
+use crate::song::{NewSong, Song};
 use actix::{Actor, Context, Handler, Message};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
@@ -10,6 +10,7 @@ pub type Conn = SqliteConnection;
 pub type SqlPool = Pool<ConnectionManager<Conn>>;
 pub type PooledConn = PooledConnection<ConnectionManager<Conn>>;
 
+/// Create new connection pool to the database.
 pub fn new_pool<S: Into<String>>(database_url: S) -> Result<SqlPool, ()> {
     let manager = ConnectionManager::<Conn>::new(database_url.into());
     let pool = r2d2::Pool::builder()
@@ -18,6 +19,7 @@ pub fn new_pool<S: Into<String>>(database_url: S) -> Result<SqlPool, ()> {
     Ok(pool)
 }
 
+/// Struct holding connection to the database.
 pub struct DBExecutor {
     conn: SqlPool,
 }
@@ -36,6 +38,8 @@ impl DBExecutor {
     }
 }
 
+/// Get random song from db with nsfw set to false.
+pub struct GetRandomSong;
 impl Message for GetRandomSong {
     type Result = Result<Song, DieselError>;
 }
@@ -48,7 +52,8 @@ impl Handler<GetRandomSong> for DBExecutor {
     }
 }
 
-// atm it's not needed
+/// Check if song is already saved in the database.
+/// If song exists then it is returned, otherwise return DieselError.
 pub struct CheckSongExistence {
     pub song_name: String,
     pub artists: String,
@@ -65,6 +70,7 @@ impl Handler<CheckSongExistence> for DBExecutor {
     }
 }
 
+/// Save new song in database.
 pub struct SaveSong {
     pub song: NewSong,
 }
@@ -77,15 +83,12 @@ impl Handler<SaveSong> for DBExecutor {
     type Result = Result<Song, DieselError>;
 
     fn handle(&mut self, msg: SaveSong, ctx: &mut Self::Context) -> Self::Result {
-        save_song(&self.get_conn(), &msg.song).map_err(|e| {
-            println!("{:#?}", e);
-            e
-        })
+        save_song(&self.get_conn(), &msg.song)
     }
 }
 
+/// Get all of the available songs from the database.
 pub struct GetAllSongs;
-
 impl Message for GetAllSongs {
     type Result = Result<Vec<Song>, DieselError>;
 }
@@ -98,6 +101,7 @@ impl Handler<GetAllSongs> for DBExecutor {
     }
 }
 
+/// Toggle nsfw of song with given id.
 pub struct ToggleSongNsfw {
     pub id: i32,
     pub is_nsfw: bool,
@@ -115,6 +119,7 @@ impl Handler<ToggleSongNsfw> for DBExecutor {
     }
 }
 
+/// Delete song with given id.
 pub struct DeleteSong {
     pub song_id: i32,
 }
@@ -130,8 +135,7 @@ impl Handler<DeleteSong> for DBExecutor {
         delete_song(&self.get_conn(), msg.song_id)
     }
 }
-// in case of problems during save return random song to user via Err()
-
+/// Returns random song from db with nsfw set to false.
 fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::nsfw;
 
@@ -143,11 +147,13 @@ fn get_random_song(conn: &PooledConn) -> Result<Song, DieselError> {
         .first::<Song>(conn)
 }
 
+/// Saves song in database.
 fn save_song(conn: &PooledConn, song: &NewSong) -> Result<Song, DieselError> {
     diesel::insert_into(songs::table).values(song).execute(conn);
     get_song(conn, song.name.clone(), song.artists.clone())
 }
 
+/// Returns song with given id from database.
 fn get_song(
     conn: &PooledConn,
     song_name: String,
@@ -159,10 +165,12 @@ fn get_song(
         .first::<Song>(conn)
 }
 
+/// Returns all available songs from database.
 fn get_all_songs(conn: &PooledConn) -> Result<Vec<Song>, DieselError> {
     songs::table.load::<Song>(conn)
 }
 
+/// Toggles song's nsfw.
 fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::{id, nsfw};
     diesel::update(songs::table.filter(id.eq(song_id)))
@@ -174,12 +182,14 @@ fn toggle_song_nsfw(conn: &PooledConn, song_id: i32, is_nsfw: bool) -> Result<So
         .first::<Song>(conn)
 }
 
+/// Deletes song from database.
 fn delete_song(conn: &PooledConn, song_id: i32) -> Result<Song, DieselError> {
     use super::schema::songs::dsl::id;
     let song = songs::table
         .filter(id.eq(song_id))
         .limit(1)
-        .first::<Song>(conn);
+        .first::<Song>(conn)?;
     diesel::delete(songs::table.filter(id.eq(song_id))).execute(conn);
-    song
+    std::fs::remove_file(&song.path);
+    Ok(song)
 }

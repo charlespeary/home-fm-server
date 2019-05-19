@@ -1,4 +1,4 @@
-use super::db::{DeleteSong, GetAllSongs, ToggleSongNsfw};
+use super::db::{DeleteSong, GetAllSongs, GetRandomSong, ToggleSongNsfw};
 use super::schema::songs;
 use super::system::AppState;
 use actix_web::{AsyncResponder, Error as AWError, FutureResponse, HttpResponse, Path, State};
@@ -27,6 +27,7 @@ fn now() -> DateTime<Utc> {
 }
 
 impl SongRequest {
+    /// {song's name} - {song's artists separated by ", " }
     pub fn get_formatted_name(&self) -> String {
         format!("{} - {}", self.name, self.artists)
     }
@@ -56,18 +57,18 @@ pub struct NewSong {
     nsfw: bool,
 }
 
-pub struct GetRandomSong;
-
+/// Get song's path inside /static/songs.
 pub fn get_song_path(song_name: &str) -> String {
     let canonicalized_path = std::fs::canonicalize(PathBuf::from("static/songs")).unwrap();
     format!("{}/{}", canonicalized_path.display(), song_name)
 }
 
+/// Get path of the json saved by youtube-dl with informations about downloaded song.
 fn get_json_path(song_path: &str) -> String {
     format!("{}.info.json", song_path)
 }
 
-// returns boolean - whether song was downloaded or not
+/// Downloads song from youtube via youtube-dl and returns boolean  whether song was downloaded or not.
 pub fn download_song(requested_song: &SongRequest) -> Result<NewSong, ()> {
     let song_path = get_song_path(&requested_song.get_formatted_name());
     let search_query: &str = &format!("ytsearch1:{}", &requested_song.get_formatted_name());
@@ -120,6 +121,7 @@ struct Info {
     thumbnail: String,
 }
 
+/// Extracts informations from song.info.json saved by youtube-dl with informations about downloaded song.
 fn get_song_info(song_path: &str, song_name: &str) -> Result<Info, ()> {
     let json_path = get_json_path(song_path);
     let file = fs::File::open(&json_path);

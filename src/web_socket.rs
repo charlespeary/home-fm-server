@@ -37,7 +37,7 @@ impl Actor for MyWebSocket {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        println!("stopping");
+        // Unregisted websocket and delete it from ClientPublisher.
         ClientPublisher::from_registry().do_send(DeleteWS {
             ws_addr: ctx.address(),
         });
@@ -49,6 +49,9 @@ impl MyWebSocket {
         MyWebSocket { hb: Instant::now() }
     }
 
+    /// Send message to the client
+    /// This is different from ClientPublisher way of sending messages, because it sends the message to just one, unique client
+    /// instead of broadcasting it to all of the available connections.
     fn send_message<T>(&self, ctx: &mut <Self as Actor>::Context, msg: &UserMessage<T>)
     where
         T: Serialize,
@@ -115,6 +118,7 @@ pub struct DeleteSongFromQueue {
 
 /// Handler for ws::Message message
 impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
+    // It handles all of the data sent by client's via websockets.
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
             ws::Message::Ping(msg) => {

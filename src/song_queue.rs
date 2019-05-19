@@ -2,10 +2,10 @@ use super::io::MyIO;
 use super::radio::{Radio, SkipSong};
 use super::song::Song;
 use crate::client_publisher::ClientPublisher;
-use crate::db::{CheckSongExistence, DBExecutor, SaveSong};
+use crate::db::{CheckSongExistence, DBExecutor, GetRandomSong, SaveSong};
 use crate::io::IOJob::DownloadSong;
 use crate::radio;
-use crate::song::{GetRandomSong, SongRequest};
+use crate::song::SongRequest;
 use crate::web_socket::{EmptyValue, UserMessage};
 use actix::fut::wrap_future;
 use actix::*;
@@ -66,6 +66,7 @@ pub struct NextSong {
 }
 
 impl SongQueue {
+    // Send message to radio's actor with song to play.
     pub fn play_song(&mut self, ctx: &mut ActorContext, song: &Song) {
         self.radio.do_send(radio::PlaySong {
             song: song.clone(),
@@ -93,7 +94,7 @@ impl SongQueue {
                 if self.active_song.is_none() {
                     self.next_song(ctx);
                 }
-                // sort songs by time they were requested at
+                // sort songs by the time they were requested at
                 self.sort_songs();
             }
             QueueJob::SkipSong => {
@@ -116,12 +117,13 @@ impl SongQueue {
         }
     }
 
-    // sort songs by time they were requested at
+    /// Sorts songs by time they were requested at.
     fn sort_songs(&mut self) {
         self.songs_queue
             .sort_by(|a, b| a.requested_at.time().cmp(&b.requested_at.time()));
     }
-
+    /// Takes next song from the queue and plays it.
+    /// If queue is empty then it chooses random song from the database with nsfw marked to false.
     fn next_song(&mut self, ctx: &mut ActorContext) {
         if let Some(scheduled_song) = self.songs_queue.first() {
             self.handle_activities(
@@ -132,7 +134,6 @@ impl SongQueue {
             );
             self.songs_queue.remove(0);
         } else {
-            //  println!("just playing some random stuff");
             let future = wrap_future::<_, Self>(self.db.send(GetRandomSong {}));
             ctx.spawn(
                 future
@@ -153,6 +154,7 @@ impl SongQueue {
         }
     }
 
+    /// Adds song to the radio queue.
     fn schedule_song(
         &mut self,
         ctx: &mut ActorContext,
@@ -180,6 +182,7 @@ impl SongQueue {
         wrap_future(ClientPublisher::from_registry().send(response))
     }
 
+    /// Downloads song from youtube and saves it in the database.
     fn get_song(
         &mut self,
         ctx: &mut ActorContext,
@@ -193,7 +196,7 @@ impl SongQueue {
             })
             .and_then(|song, actor, ctx| (fut_ok(song.unwrap()).into_actor(actor)))
     }
-
+    /// Downloads song from youtube via youtube-dl, but before any download starts, it firstly checks whether song exists in the db or not.
     fn download_song(&mut self, ctx: &mut ActorContext, requested_song: SongRequest) {
         let requested_at = requested_song.requested_at;
         ctx.spawn(
@@ -218,6 +221,7 @@ impl SongQueue {
     }
 }
 
+/// Request next song.
 impl Handler<radio::NextSong> for SongQueue {
     type Result = ();
     fn handle(&mut self, msg: radio::NextSong, ctx: &mut Self::Context) -> Self::Result {
@@ -234,7 +238,7 @@ pub struct QueueState {
     pub songs_queue: Vec<ScheduledSong>,
 }
 
-// broadcast queue state after receiving message from websocket that there's new connection
+// Broadcasts queue state after receiving message from websocket that there's new connection available.
 impl Handler<BroadcastState> for SongQueue {
     type Result = ();
     fn handle(&mut self, msg: BroadcastState, ctx: &mut Self::Context) -> Self::Result {

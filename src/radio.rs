@@ -7,7 +7,9 @@ use futures::Future;
 use std::path::Path;
 use std::process::Command;
 use tokio_process::CommandExt;
+
 #[derive(Default)]
+/// Struct responsible for playing songs via PiFmAdv.
 pub struct Radio {
     script_path: String,
     // handle to process playing song
@@ -60,14 +62,17 @@ impl Actor for Radio {
 impl Handler<PlaySong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: PlaySong, ctx: &mut Self::Context) -> Self::Result {
-        println!("{}", self.frequency.to_string());
         self.playing = true;
+        // spawn command playing song on the radio
+        // it is async, so if I will cancel the future
+        // tokio will drop the command's process
+        // therefore it is useful for skipping logic
         let handle = Command::new("timeout")
             .arg(&msg.song.duration.to_string())
             .arg("sudo")
             .arg(self.script_path.clone())
             .arg("--freq")
-            // replace . with , because that's what library wants
+            // replace . with , because that's what library
             .arg(self.frequency.to_string().replace(".", ","))
             .arg("--audio")
             .arg(&msg.song.path)
@@ -87,6 +92,7 @@ impl Handler<SkipSong> for Radio {
     type Result = ();
     fn handle(&mut self, msg: SkipSong, ctx: &mut Self::Context) -> Self::Result {
         if let Some(command_handle) = self.command_handle {
+            // cancel future and drop the command proccess
             ctx.cancel_future(command_handle);
             msg.queue_addr.do_send(NextSong {});
         }
@@ -108,9 +114,9 @@ impl Handler<SetFrequency> for Radio {
         self.frequency = msg.frequency;
     }
 }
-
+/// Check if PiFmAdv script exists if not then panic.
 pub fn get_script_path() -> Result<String, ()> {
-    let path = Path::new("../fm_transmitter/fm_transmitter");
+    let path = Path::new("../PiFmAdv/src/pi_fm_adv");
     let script_exists = path.exists();
     if script_exists {
         Ok(std::fs::canonicalize(&path)

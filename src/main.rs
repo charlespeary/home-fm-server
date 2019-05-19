@@ -17,6 +17,5 @@ extern crate num_cpus;
 extern crate diesel;
 
 fn main() {
-    //  play_song("/home/sniadek/Projects/home-fm-server/static/songs/BIAŁAS & LANEK - Blizny na rękach [official audio].mp3");
     let system = System::new();
 }

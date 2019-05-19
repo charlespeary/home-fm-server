@@ -3,6 +3,9 @@ use crate::db::DBExecutor;
 use crate::song::{NewSong, SongRequest};
 use actix::*;
 
+/// IO is an actor of SyncContext in order to be able to spawn it with SyncArbiter
+/// It allows for multiple IO operations at once, so e.g few downloads from youtube
+/// can be done simultaneously
 pub struct MyIO {
     pub db: Addr<DBExecutor>,
 }

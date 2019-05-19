@@ -4,6 +4,8 @@ use actix::prelude::*;
 use serde::Serialize;
 
 #[derive(Default)]
+/// Struct keeping track of connected websockets.
+/// If some data needs to be sent to all of the clients, then it is forwarded through this struct.
 pub struct ClientPublisher {
     websockets: Vec<Addr<MyWebSocket>>,
 }
@@ -36,8 +38,8 @@ impl Message for DeleteWS {
     type Result = ();
 }
 
+/// Deletes inactive websocket from the vector of available connections.
 impl Handler<DeleteWS> for ClientPublisher {
-    // we return index of the websocket in the vector
     type Result = ();
     fn handle(&mut self, msg: DeleteWS, ctx: &mut Self::Context) -> Self::Result {
         let mut index = 0;
@@ -52,21 +54,20 @@ impl Handler<DeleteWS> for ClientPublisher {
         if !ws_found {
             return;
         }
-        println!("Deleting ws at index - {}", index);
         self.websockets.remove(index);
     }
 }
 
+/// Adds new websocket's address to the vector of available connections.
 impl Handler<RegisterWS> for ClientPublisher {
-    // we return index of the websocket in the vector
     type Result = Result<(), ()>;
     fn handle(&mut self, msg: RegisterWS, ctx: &mut Self::Context) -> Self::Result {
-        println!("Registering new WS");
         self.websockets.push(msg.addr);
         Ok(())
     }
 }
 
+/// Sends message to every client in the vector of available connections.
 impl<T> Handler<UserMessage<T>> for ClientPublisher
 where
     T: Serialize + Send + 'static + Clone,
