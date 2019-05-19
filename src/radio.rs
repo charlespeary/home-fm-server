@@ -114,6 +114,21 @@ impl Handler<SetFrequency> for Radio {
         self.frequency = msg.frequency;
     }
 }
+
+pub struct GetFrequency;
+
+impl Message for GetFrequency {
+    type Result = f32;
+}
+
+impl Handler<GetFrequency> for Radio {
+    type Result = f32;
+
+    fn handle(&mut self, msg: GetFrequency, ctx: &mut Self::Context) -> Self::Result {
+        self.frequency
+    }
+}
+
 /// Check if PiFmAdv script exists if not then panic.
 pub fn get_script_path() -> Result<String, ()> {
     let path = Path::new("../PiFmAdv/src/pi_fm_adv");

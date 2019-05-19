@@ -1,4 +1,4 @@
-use super::config::update_config;
+use super::config::{get_config, update_config};
 use super::io::MyIO;
 use super::radio::Radio;
 use super::song::{delete_song, get_all_songs, toggle_song_nsfw};
@@ -82,7 +82,8 @@ impl System {
                             r.method(http::Method::PUT).with(toggle_song_nsfw)
                         })
                         .resource("/config", |r| {
-                            r.method(http::Method::PUT).with(update_config)
+                            r.method(http::Method::PUT).with(update_config);
+                            r.method(http::Method::GET).with(get_config);
                         })
                 })
                 .resource(r"/{tail:.*}", |r| {
